@@ -17,8 +17,8 @@ credentials, raw tokens, private keys and customer data.
 The software-only profile requires explicit realm activation and administrator
 configuration. It does not qualify human consent or impersonation. Offline JWTs
 remain valid until their bounded expiry; instant resource-side revocation is not
-claimed. Shared-cache failover and installed Kubernetes qualification remain
-tracked by [Hanko #71](https://github.com/Alien6-Studio/hankoshell-operator/issues/71).
+claimed. Shared-cache failover, release qualification and operational gaps are tracked in
+the [project roadmap](docs/roadmap.md). Consumer deployment tests remain with consumers.
 See [README.md](README.md) for deployment and withdrawal requirements.
 
 ## Repository protections
@@ -28,7 +28,7 @@ See [README.md](README.md) for deployment and withdrawal requirements.
 history, squash PRs, resolved review threads and the up-to-date `Extension checks`
 aggregate bound to GitHub Actions. CodeQL blocks errors and high-or-higher
 security findings. Force pushes and deletion are blocked, with no bypass actors.
-As in the operator repository, no independent approving reviewer is currently
+No independent approving reviewer is currently
 required; [CODEOWNERS](.github/CODEOWNERS) identifies the maintainer.
 
 `make policy-check` checks the reviewed exports. `python3 scripts/check-rulesets.py
@@ -40,4 +40,13 @@ confirm those lists; an omitted list is never treated as empty.
 Actions receive read-only repository permissions and cannot approve PRs.
 Dependencies and Actions have weekly Dependabot updates; secret scanning, push
 protection, dependency alerts and private vulnerability reporting are enabled.
-No workflow publishes Maven artifacts, tags or releases.
+The release workflow can create a draft prerelease only after verified-tag and
+complete SDK qualification gates. Stable publication is blocked while the project
+is experimental. It never creates tags or deploys to Maven Central; see
+[the release policy](docs/releases.md).
+
+The draft release publisher uses the [reviewed `release` environment](.github/release-environment.json), restricted to workflow
+runs from main. It rechecks GitHub-Verified source/tag identity and artifact hashes
+before attestation and draft creation. Build jobs remain read-only; first-release
+OIDC/publication validation is not established by local rehearsal. Downloaded
+artifact integrity and SDK/version matching are required before installation.

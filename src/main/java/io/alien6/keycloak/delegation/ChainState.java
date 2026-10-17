@@ -7,6 +7,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.Map;
+
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
@@ -15,14 +16,14 @@ import org.keycloak.representations.AccessToken;
 /** Private, expiring server evidence. No token, token hash or human inventory is retained. */
 record ChainState(int depth, int maxDepth, int maxTTLSeconds, Map<String, String> policies) {
     ChainState {
-        if (depth < 0 || depth > 4 || maxDepth < 1 || maxDepth > 4 || maxTTLSeconds < 1 || maxTTLSeconds > 600
+        if (depth < 0 || depth > SoftwareProfile.MAX_DEPTH || maxDepth < 1 || maxDepth > SoftwareProfile.MAX_DEPTH || maxTTLSeconds < 1 || maxTTLSeconds > SoftwareProfile.MAX_TTL_SECONDS
                 || policies == null || policies.size() > 8) throw new Bounds.Rejected("chain_invalid");
         policies = Map.copyOf(policies);
     }
 
     static ChainState read(KeycloakSession session, RealmModel realm, AccessToken token) {
         Object act = token.getOtherClaims().get("act");
-        if (act == null) return new ChainState(0, 4, 600, Map.of());
+        if (act == null) return new ChainState(0, SoftwareProfile.MAX_DEPTH, SoftwareProfile.MAX_TTL_SECONDS, Map.of());
         Map<String, String> evidence = session.singleUseObjects().get(key(realm, "issued", token.getId()));
         if (evidence == null) throw new Bounds.Rejected("chain_unqualified");
         try {
@@ -51,7 +52,7 @@ record ChainState(int depth, int maxDepth, int maxTTLSeconds, Map<String, String
     static int actorDepth(Object value) {
         int depth = 0;
         while (value != null) {
-            if (++depth > 4 || !(value instanceof Map<?, ?> actor) || !(actor.get("sub") instanceof String sub)
+            if (++depth > SoftwareProfile.MAX_DEPTH || !(value instanceof Map<?, ?> actor) || !(actor.get("sub") instanceof String sub)
                     || sub.isBlank() || sub.length() > 512) throw new Bounds.Rejected("chain_invalid");
             value = actor.get("act");
         }

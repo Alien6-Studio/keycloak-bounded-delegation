@@ -1,21 +1,22 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 package io.alien6.keycloak.delegation;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.StreamReadConstraints;
-import com.fasterxml.jackson.core.StreamReadFeature;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.MapperFeature;
-import com.fasterxml.jackson.databind.json.JsonMapper;
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
+
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.StreamReadConstraints;
+import com.fasterxml.jackson.core.StreamReadFeature;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 
 /** Administrative configuration, not a token claim or an approval supplied by a caller. */
 public record GrantDocument(int version, String phase, String ownerUID, String revision,
@@ -72,9 +73,8 @@ public record GrantDocument(int version, String phase, String ownerUID, String r
             if (conditions == null || conditions.isEmpty() || conditions.size() > 128) throw new IllegalArgumentException("grant_conditions");
             conditions = List.copyOf(conditions);
             new Bounds.Grant(authority, maxDepth, maxTTLSeconds);
-            // This deployment profile matches the operator's reviewed admission contract.
-            // The pure kernel has no Hanko-specific depth/lifetime ceiling.
-            if (maxDepth > 4 || maxTTLSeconds > 600 || authority.permissions().isEmpty()) throw new IllegalArgumentException("grant_profile");
+            // Deployment ceilings belong to this versioned software profile, not the generic kernel.
+            if (maxDepth > SoftwareProfile.MAX_DEPTH || maxTTLSeconds > SoftwareProfile.MAX_TTL_SECONDS || authority.permissions().isEmpty()) throw new IllegalArgumentException("grant_profile");
         }
         public Bounds.Grant bounds() { return new Bounds.Grant(authority, maxDepth, maxTTLSeconds); }
         public void authorize(KeycloakSession session, RealmModel realm, ClientModel client, UserModel user) {

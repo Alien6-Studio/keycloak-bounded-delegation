@@ -1,0 +1,7 @@
+Keycloak Bounded Delegation
+Copyright 2026 Alien6 Studio and contributors.
+
+This project originated in hankoshell-operator; see SOURCE.md for provenance.
+Keycloak is an independent open-source project. Its libraries are provided by the
+Keycloak server and are not shaded into this extension. Test-framework and build
+dependencies are not part of the runtime provider JAR.

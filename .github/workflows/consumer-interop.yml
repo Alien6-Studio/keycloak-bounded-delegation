@@ -1,0 +1,42 @@
+name: Consumer interoperability
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 7 * * 2'
+permissions:
+  contents: read
+jobs:
+  hanko:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        keycloak: ["26.7.5", "26.8.0"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.2'
+          cache: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Alien6-Studio/hankoshell-operator
+          ref: 7df9282fa27b55c0af6186564d53ccf6c1de5942
+          path: qualification
+          persist-credentials: false
+      - run: MAVEN_REPO_LOCAL="$HOME/.m2/repository" make consumer-test KEYCLOAK_VERSION=${{ matrix.keycloak }} QUALIFICATION_DIR="$GITHUB_WORKSPACE/qualification"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: consumer-interop-${{ matrix.keycloak }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/${{ matrix.keycloak }}/interop/
+          if-no-files-found: error
+          retention-days: 30

@@ -1,6 +1,7 @@
-name: Keycloak extension
+name: CI
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
   schedule:
@@ -48,7 +49,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/check-rulesets.py --live --allow-hidden-bypass
   qualify:
-    name: Java and HTTPS Keycloak ${{ matrix.keycloak }}
+    name: Native Keycloak ${{ matrix.keycloak }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -63,31 +64,53 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+          cache: maven
+      - name: Qualify native behavior and rehearse SDK release assets
+        run: MAVEN_REPO_LOCAL="$HOME/.m2/repository" make release-dry-run KEYCLOAK_VERSION=${{ matrix.keycloak }}
+      - name: Preserve the immutable SDK candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          go-version: '1.27.2'
-          cache: false
-      - name: Checkout the pinned consumer interoperability harness
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: Alien6-Studio/hankoshell-operator
-          ref: 7df9282fa27b55c0af6186564d53ccf6c1de5942
-          path: qualification
-          persist-credentials: false
-      - run: make integration-test KEYCLOAK_VERSION=${{ matrix.keycloak }} QUALIFICATION_DIR="$GITHUB_WORKSPACE/qualification"
-      - name: Preserve Java and interoperability evidence
+          name: candidate-${{ matrix.keycloak }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/${{ matrix.keycloak }}/release-dry-run/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve native qualification evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: qualification-${{ matrix.keycloak }}
           path: |
             target/${{ matrix.keycloak }}/surefire-reports/
-            target/${{ matrix.keycloak }}/interop/
+            target/${{ matrix.keycloak }}/failsafe-reports/
+            target/${{ matrix.keycloak }}/qualification/
+            target/${{ matrix.keycloak }}/sbom.json
+          if-no-files-found: error
+          retention-days: 30
+  rehearsal:
+    name: Release bundle rehearsal
+    needs: [qualify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: candidate-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/incoming
+          merge-multiple: true
+      - name: Verify every SDK hash and assemble the complete candidate
+        run: python3 scripts/release.py assemble --incoming target/incoming --output target/release-rehearsal --dry-run
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: NONPUBLISHABLE-release-rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/release-rehearsal/
           if-no-files-found: error
           retention-days: 30
   checks:
     name: Extension checks
-    needs: [policy, qualify]
+    needs: [policy, qualify, rehearsal]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2
@@ -96,6 +119,8 @@ jobs:
         env:
           POLICY: ${{ needs.policy.result }}
           QUALIFY: ${{ needs.qualify.result }}
+          REHEARSAL: ${{ needs.rehearsal.result }}
         run: |
           test "$POLICY" = success
           test "$QUALIFY" = success
+          test "$REHEARSAL" = success

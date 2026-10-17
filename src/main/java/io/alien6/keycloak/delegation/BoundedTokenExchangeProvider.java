@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 package io.alien6.keycloak.delegation;
 
-import jakarta.ws.rs.core.Response;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import jakarta.ws.rs.core.Response;
+
 import org.keycloak.OAuth2Constants;
 import org.keycloak.OAuthErrorException;
 import org.keycloak.common.util.Time;
@@ -37,7 +39,7 @@ public final class BoundedTokenExchangeProvider extends StandardTokenExchangePro
     @Override public boolean supports(TokenExchangeContext context) {
         // Claim the whole internal access-token route before native/legacy providers.
         // Missing actor_token must not launder a delegated token through another route.
-        return "software-v1".equals(context.getRealm().getAttribute(GrantDocument.REALM_ATTRIBUTE))
+        return SoftwareProfile.ID.equals(context.getRealm().getAttribute(GrantDocument.REALM_ATTRIBUTE))
                 && (context.getParams().getActorToken() != null || context.getParams().getSubjectToken() != null);
     }
 

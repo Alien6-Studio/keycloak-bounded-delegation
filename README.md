@@ -1,93 +1,104 @@
-# Experimental bounded delegation for Keycloak
+# Keycloak Bounded Delegation
 
-This standalone Apache-2.0 Java extension implements the opt-in
-`bounded-delegation/software-v1` profile. It has no Kubernetes or Hanko runtime
-dependency. It is maintained here against **exactly 26.7.5 and 26.8.0**, using
-Keycloak's private SPI; it is not an official Keycloak feature or a stable API.
-An upstream discussion draft is [prepared separately](docs/upstream-proposal.md).
+[![CI](https://github.com/Alien6-Studio/keycloak-bounded-delegation/actions/workflows/ci.yml/badge.svg)](https://github.com/Alien6-Studio/keycloak-bounded-delegation/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-## Build and qualify
+An experimental Keycloak extension for **bounded delegated token exchange**, and
+a reference implementation for proposing these controls to the Keycloak project.
+It limits what a software actor can do on behalf of a subject: permissions,
+audience, token lifetime and inherited delegation depth.
 
-Use JDK 21 or newer, Maven, Go and Docker. From this standalone repository root (provide the exact clean consumer checkout
-identified in compatibility.json for native interoperability):
+The project targets integration with Keycloak's native exchange and client-policy
+mechanisms. It is independently maintained by Alien6 Studio; an upstream proposal
+is being prepared and has not been submitted or accepted. See the
+[proposal and integration plan](docs/upstream-proposal.md).
 
-```sh
-make integration-test KEYCLOAK_VERSION=26.7.5 QUALIFICATION_DIR=/path/to/pinned/hankoshell-operator
-make integration-test KEYCLOAK_VERSION=26.8.0 QUALIFICATION_DIR=/path/to/pinned/hankoshell-operator
+## Why bounded delegation?
+
+A billing service may delegate permission to read one invoice to a worker, for
+30 seconds and at most two hops. An exchange must preserve those limits even
+when an input token or the requesting client's defaults contain more authority.
+This extension's software profile enforces:
+
+```text
+output permissions ⊆ actor input ∩ subject input ∩ declared grant ∩ current native policies
+output audience    = one declared resource server
+output expiration  ≤ min(actor expiry, subject expiry, native expiry, policy TTL)
+output depth       ≤ every inherited chain limit
 ```
 
-Each command builds the matching SDK, runs Java kernel/parser tests, then runs
-real HTTPS Keycloak/controller tests with signature-verified tokens and Go's race
-detector. A missing JAR, inventory drift, failure or skip fails the dedicated gate.
-The ordinary stock-provider tests remain separate. CI runs both SDKs and retains
-Java reports, JAR digest/source identity and filtered Go interoperability results. No artifact is
-published. `make test` builds and tests Java only. The consumer harness is a test dependency;
-the JAR has no Hanko runtime dependency.
+Keycloak already provides standard token exchange, delegation work and a
+[client policy for downscoping](https://www.keycloak.org/securing-apps/token-exchange).
+Our [upstream comparison](docs/upstream-proposal.md#relationship-to-native-keycloak)
+explains the proposed additional policy controls and the integration questions.
+The prototype's administrative journal and replay policy are separate design
+choices, not requirements of RFC 8693.
 
-The JAR is `target/VERSION/bounded-delegation-keycloak-VERSION.jar`. Match it to
-the running Keycloak version. Copy it into the server's `providers/` directory
-and run `bin/kc.sh build` when constructing the Keycloak image, following the
-[Keycloak extension guide](https://www.keycloak.org/docs/26.7.5/server_development/index.html).
-Installation and realm activation remain explicit administrator operations.
+## Try the extension
 
-An external realm administrator must explicitly set the realm attribute
-`oauth.bounded-delegation.profile=software-v1`; standard token exchange V2 must
-be enabled. The delegation writer does not receive `manage-realm`. Discovery at
-`/realms/REALM/bounded-delegation` reports only profile/version/limits/activation,
-never grants, identities or tokens. Unselected realms continue using native
-exchange. A selected realm is dedicated to this software profile: human/native
-preview delegation and legacy/external exchange are not qualified in that realm.
+Use **JDK 21**. The Maven wrapper downloads its pinned Maven distribution.
 
-## Contract
+```sh
+./mvnw verify
+./mvnw -Pnative-tests verify
+```
 
-The authenticated actor and subject are distinct, enabled, confidential OIDC
-service-account clients. The audience is one declared, enabled Authorization
-Services resource server in enforcing mode. Native bindings include client UUID
-and administrative ownership attribute/value; replacements do not inherit grants.
-An actor marker prevents dropping `actor_token` to fall through to ordinary
-exchange while its grants are installed. Existing delegated `act` tokens also
-cannot take the ordinary route in a selected realm.
+The first command runs isolated Java tests and builds the provider, sources and
+Javadoc JARs. The second runs functional tests on a real Keycloak distribution
+managed by the **official Keycloak test framework**. It needs no Docker, Go,
+Kubernetes or consumer repository. The framework uses local ports 8080, 8443
+and 9001; keep those ports free. Run SDK variants sequentially on a developer
+machine; CI isolates each matrix cell.
 
-Administrative configuration is a strict versioned client attribute
-`oauth.bounded-delegation.v1`. Only `Committed` grants execute. The operator
-adapter owns its Prepared/Applied/Verified/Committed journal, explicit local
-references and UID/tenant checks; those are separate from the Java policy kernel.
-The bridge emits UMA resource/scope permissions and strips ambient OAuth scopes,
-realm/client roles and arbitrary mapper claims. Its generic kernel can intersect
-those authority dimensions independently; this does not add a new Hanko role-grant
-API or authorize human consent.
+```sh
+make integration-test KEYCLOAK_VERSION=26.7.5
+make integration-test KEYCLOAK_VERSION=26.8.0
+```
 
-At issuance, requested permissions are bounded by both signed inputs, the grant
-and **current native** actor/subject policies and memberships. Output has one
-explicit audience, RFC 8693 `act`, no refresh token, at most four hops and at most
-600 seconds. Expiration is the minimum of both inputs, native output lifespan and
-the declared/inherited TTL. Neither realm nor session lifespans are raised.
-Unknown/foreign/expired inputs, permission excess, ambiguous actor/subject pairs,
-chain merges and sender-constrained delegated inputs are refused. A disjoint
-permission intersection issues no token.
+The exact qualification window is recorded in [compatibility.json](compatibility.json).
+The current profile is `bounded-delegation/software-v1`, version
+`0.1.0-SNAPSHOT`. There is no published release yet. A failed, missing or skipped
+required test fails qualification; results record source identity and JAR hashes.
 
-Actor JTI consumption uses Keycloak's atomic shared single-use-object provider.
-Private expiring server evidence binds issued chain depth, inherited limits and
-ancestor grant configuration hashes. Raw tokens and token hashes are not stored.
-Missing chain evidence refuses further exchange. Grant/owner changes invalidate
-future chained issuance. Deployments require a shared, correctly configured
-Keycloak cache; multi-node failover and installed Kubernetes flows still require
-[installed and multi-node qualification](https://github.com/Alien6-Studio/hankoshell-operator/issues/71). Do not claim a local single-node fixture establishes those.
+Follow [installation and configuration](docs/installation.md) to build a server
+image, explicitly activate the realm profile and install administrative grants.
+The provider JAR is `target/VERSION/bounded-delegation-keycloak-VERSION.jar`.
+Match its SDK to the running Keycloak version.
 
-Removing an owned permission disables its native grant before releasing only its
-actor ownership entries. Shared actors preserve other owners and their exchange
-setting; the last owner restores the original setting. Unrelated clients and
-sessions are retained. Existing offline JWTs remain usable until bounded expiry;
-instant resource-side revocation is not claimed. An administrator must withdraw
-grants and wait their maximum remaining token lifetime before disabling the realm
-profile or uninstalling the enforcing provider. Changing that enforcement boundary
-is a deployment operation, not ordinary permission revocation.
+## What is implemented?
 
-## Contribution and maintenance
+| Area | Current software profile |
+| --- | --- |
+| Identities | Distinct, enabled confidential service-account clients |
+| Authority | UMA resource/scope permissions intersected with both inputs and live native policy |
+| Other claims | Ambient OAuth scopes, realm/client roles and arbitrary mapper claims are removed from delegated output |
+| Audience | One explicitly declared Authorization Services resource server |
+| Lifetime and depth | Minimum input/native/policy expiry; inherited limits; ceilings of 600 seconds and four hops |
+| Replay | Atomic actor JTI consumption through Keycloak's single-use-object provider |
+| Administrative state | Only committed, identity-bound grants execute; stale bindings and changed ancestor grants are refused |
+| Ordinary exchange | Unselected realms retain native exchange; selected realms prevent alternative-route bypasses |
 
-The [upstream proposal](docs/upstream-proposal.md)
-separates optional Keycloak authority/depth/lifetime policy from Hanko ownership
-and replay requirements. A contribution to current Keycloak main must use its
-native test framework and agreed configuration hooks. This private-SPI adapter is
-not a drop-in upstream PR. Contributions follow [Apache-2.0](LICENSE), DCO
-sign-off, and explicit disclosure of AI agent assistance in the future PR.
+The independent [policy kernel](src/main/java/io/alien6/keycloak/delegation/Bounds.java)
+can represent additional authority dimensions. The current server bridge emits
+only bounded UMA permissions; kernel tests do not establish server support for
+additional role or scope grant modes. See [architecture and protocol](docs/architecture.md).
+
+Multi-node failover, human delegation, sender-constrained delegated tokens and
+production readiness remain outside the current qualification. Previously issued
+offline JWTs remain valid until their bounded expiry. See
+[security boundaries](SECURITY.md) and the [release readiness roadmap](docs/roadmap.md).
+
+## Releases and contribution
+
+The [release process](docs/releases.md) prepares one versioned binary, sources,
+Javadoc and SBOM per qualified SDK, SHA256 checksums and build attestations.
+Publication starts with a verified annotated tag on protected `main`, reruns
+qualification, and creates a **draft prerelease**. The current experimental
+policy blocks stable releases. No release has been created by this refactoring.
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md), [support](SUPPORT.md) and
+[governance](GOVERNANCE.md). For the intended official contribution, follow the
+[upstream path](docs/upstream-proposal.md#contribution-sequence): focused scope,
+maintainer discussion, native tests and documentation. The original consumer's
+[optional interoperability suite](docs/integrations/hanko.md) stays separate
+from the extension's own qualification. Historical provenance is in [SOURCE.md](SOURCE.md).
