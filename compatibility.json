@@ -5,7 +5,8 @@
   "java": 21,
   "keycloak": [
     "26.7.5",
-    "26.8.0"
+    "26.8.0",
+    "26.8.1"
   ],
   "native": {
     "test_class": "io.alien6.keycloak.delegation.BoundedDelegationIT",
