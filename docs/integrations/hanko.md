@@ -22,3 +22,9 @@ remain tracked in [Hanko #71](https://github.com/Alien6-Studio/hankoshell-operat
 Hanko pins its own reviewed extension commit. A release here does not silently
 upgrade or enable a consumer's deployment. The software-v1 administrative wire
 contract is retained while the upstream design is discussed independently.
+
+The pinned harness has fixtures for Keycloak **26.7.5 and 26.8.0** only.
+Its compatibility window is recorded separately under `integrations.hanko.keycloak`
+and checked against the consumer workflow. Keycloak 26.8.1 native qualification
+does not imply Hanko interoperability: that requires a new reviewed fixture and
+harness revision. Unsupported consumer SDKs are rejected before any build or Docker access.

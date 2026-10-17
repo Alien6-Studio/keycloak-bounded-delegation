@@ -61,6 +61,10 @@
         "TestRealKeycloakBoundedDelegationExtension/provider_enforces_permission_audience_actor_and_expiration_bounds",
         "TestRealKeycloakBoundedDelegationExtension/resource-server_controller_applies_observed_delegation_and_survives_restart",
         "TestRealKeycloakBoundedDelegationExtension/short_inputs_bound_output_and_expired_inputs_cannot_issue_again"
+      ],
+      "keycloak": [
+        "26.7.5",
+        "26.8.0"
       ]
     }
   }

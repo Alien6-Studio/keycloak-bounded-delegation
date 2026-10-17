@@ -38,7 +38,8 @@ Hanko's controller/transaction tests remain in its own repository. The optional
 [consumer workflow](../.github/workflows/consumer-interop.yml) uses a fixed
 harness commit and exercises this extension's actual JAR. It does not replace
 native extension tests and is not a prerequisite for developing the extension.
-See [consumer integration](integrations/hanko.md).
+Its pinned fixture window is separate from the extension SDK matrix; an extension
+SDK upgrade never silently expands consumer qualification. See [consumer integration](integrations/hanko.md).
 
 ## Upstream evidence
 

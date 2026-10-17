@@ -28,9 +28,9 @@ def main():
     parser.add_argument("--harness", type=Path, required=True)
     args = parser.parse_args()
     contract = json.loads((ROOT / "compatibility.json").read_text())
-    if args.keycloak_version not in contract["keycloak"]:
-        raise ValueError("Unqualified Keycloak version")
     expected = contract["integrations"]["hanko"]
+    if args.keycloak_version not in contract["keycloak"] or args.keycloak_version not in expected["keycloak"]:
+        raise ValueError("No reviewed consumer fixture for this Keycloak SDK; native qualification is separate")
     source, revision = identity(ROOT), identity(args.harness)
     if revision != expected["revision"]:
         raise ValueError("Use the exact reviewed qualification harness")

@@ -35,6 +35,12 @@ def check(root=ROOT):
         workflow = yaml.safe_load((root / ".github/workflows" / filename).read_text())
         if workflow["jobs"]["qualify"]["strategy"]["matrix"]["keycloak"] != versions:
             raise ValueError("SDK matrix drift in " + filename)
+    consumer_versions = contract["integrations"]["hanko"]["keycloak"]
+    consumer_workflow = yaml.safe_load((root / ".github/workflows/consumer-interop.yml").read_text())
+    if (not consumer_versions or len(set(consumer_versions)) != len(consumer_versions)
+            or not set(consumer_versions) <= set(versions)
+            or consumer_workflow["jobs"]["hanko"]["strategy"]["matrix"]["keycloak"] != consumer_versions):
+        raise ValueError("Consumer SDK matrix differs from its own pinned fixtures")
     environment = json.loads((root / ".github/release-environment.json").read_text())
     release = yaml.safe_load((root / ".github/workflows/release.yml").read_text())
     if (environment != {"name": "release", "deployment_branch_policy": {"protected_branches": False, "custom_branch_policies": True},
