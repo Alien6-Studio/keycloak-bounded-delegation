@@ -1,0 +1,15 @@
+{
+  "providerType": "org.keycloak.services.ui.extend.UiPageProvider",
+  "providerId": "Bounded delegations",
+  "config": {
+    "name": ["Read one invoice"],
+    "actor": ["invoice-worker"],
+    "subject": ["billing-service"],
+    "audience": ["invoice-api"],
+    "resource": ["invoice"],
+    "scopes": ["read"],
+    "maxDepth": ["2"],
+    "maxTTLSeconds": ["30"],
+    "enabled": ["true"]
+  }
+}

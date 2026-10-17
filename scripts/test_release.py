@@ -56,6 +56,9 @@ class ReleaseTests(unittest.TestCase):
             entries = {"META-INF/LICENSE": "license", "META-INF/NOTICE": "notice", "bounded-delegation.properties": "version=0.1.0-rc.1\n",
                        "META-INF/services/org.keycloak.protocol.oidc.TokenExchangeProviderFactory": "provider",
                        "META-INF/services/org.keycloak.services.resource.RealmResourceProviderFactory": "discovery",
+                       "META-INF/services/org.keycloak.services.resources.admin.ext.AdminRealmResourceProviderFactory": "admin",
+                       "META-INF/services/org.keycloak.services.ui.extend.UiPageProviderFactory": "page",
+                       "META-INF/services/org.keycloak.services.ui.extend.UiTabProviderFactory": "tab",
                        "io/alien6/keycloak/delegation/Provider.class": b"\xca\xfe\xba\xbe\x00\x00\x00A"}
             for change in ({}, {"bounded-delegation.properties": "version=foreign"}, {"org/keycloak/Shaded.class": b"\xca\xfe\xba\xbe\x00\x00\x00A"},
                            {"io/alien6/keycloak/delegation/Provider.class": b"\xca\xfe\xba\xbe\x00\x00\x00B"}):
@@ -76,6 +79,13 @@ class ReleaseTests(unittest.TestCase):
                 else:
                     with self.assertRaises(ValueError):
                         release.validate_jar(path, "0.1.0-rc.1")
+            for missing in (name for name in entries if name.startswith("META-INF/services/")):
+                with ZipFile(path, "w") as jar:
+                    for name, value in entries.items():
+                        if name != missing:
+                            jar.writestr(name, value)
+                with self.subTest(missing=missing), self.assertRaisesRegex(ValueError, "metadata"):
+                    release.validate_jar(path, "0.1.0-rc.1")
 
     def test_bundle_refuses_missing_foreign_dirty_or_tampered_cells(self):
         with tempfile.TemporaryDirectory() as temporary:

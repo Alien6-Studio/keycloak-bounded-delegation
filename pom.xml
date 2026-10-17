@@ -53,6 +53,7 @@
       <id>native-tests</id>
       <dependencies>
         <dependency><groupId>org.keycloak.testframework</groupId><artifactId>keycloak-test-framework-core</artifactId><scope>test</scope></dependency>
+        <dependency><groupId>org.keycloak.testframework</groupId><artifactId>keycloak-test-framework-ui</artifactId><scope>test</scope></dependency>
       </dependencies>
       <build><plugins>
         <plugin><groupId>org.codehaus.mojo</groupId><artifactId>build-helper-maven-plugin</artifactId><version>3.2.0</version><executions><execution><id>native-test-sources</id><phase>generate-test-sources</phase><goals><goal>add-test-source</goal></goals><configuration><sources><source>src/it/java</source></sources></configuration></execution></executions></plugin>

@@ -9,17 +9,19 @@ Security and conduct reports use [SECURITY.md](SECURITY.md) and
 
 ## Local development
 
-Use JDK 21 and the pinned Maven wrapper. Run SDK variants sequentially locally:
+Use JDK 21, Chrome for console tests, and the pinned Maven wrapper. Run SDK variants sequentially locally:
 
 ```sh
 ./mvnw spotless:apply
 ./mvnw verify
 make integration-test KEYCLOAK_VERSION=26.7.5
 make integration-test KEYCLOAK_VERSION=26.8.0
-make release-dry-run KEYCLOAK_VERSION=26.8.0
+make integration-test KEYCLOAK_VERSION=26.8.1
+make release-dry-run KEYCLOAK_VERSION=26.8.1
 ```
 
-The Java formatting/import rules follow the reviewed Keycloak Spotless policy.
+The Java import-order, unused-import and wildcard checks follow the reviewed
+Keycloak Spotless rules.
 Native tests use Keycloak's own framework with real distributions and native
 Admin/OAuth APIs. Keep the kernel small and independent; add functional regression
 cases for changed issuance, policy, expiry, depth, replay and alternate routes.

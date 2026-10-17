@@ -25,7 +25,9 @@ import org.keycloak.jose.jwk.JWKParser;
 import org.keycloak.jose.jws.JWSInput;
 import org.keycloak.representations.AccessToken;
 import org.keycloak.representations.idm.ClientRepresentation;
+import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.testframework.annotations.InjectAdminClient;
 import org.keycloak.testframework.annotations.InjectKeycloakUrls;
 import org.keycloak.testframework.annotations.KeycloakIntegrationTest;
@@ -38,6 +40,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.openqa.selenium.By;
+import org.openqa.selenium.OutputType;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -66,7 +75,7 @@ public class BoundedDelegationIT {
 
     public static class Server implements KeycloakServerConfig {
         @Override public KeycloakServerConfigBuilder configure(KeycloakServerConfigBuilder config) {
-            return config.dependencyCurrentProject();
+            return config.dependencyCurrentProject().features(org.keycloak.common.Profile.Feature.DECLARATIVE_UI);
         }
     }
 
@@ -229,6 +238,13 @@ public class BoundedDelegationIT {
         denied(exchange("actor", subject, actor, Map.of()));
     }
 
+    @Test void publicSubjectCannotReusePreviouslyIssuedConfidentialInputs() throws Exception {
+        String actor = rpt("actor", "read"), subject = rpt("subject", "read");
+        var client = admin.realm(realm).clients().get(clients.get("subject"));
+        var current = client.toRepresentation(); current.setPublicClient(true); client.update(current);
+        denied(exchange("actor", subject, actor, Map.of()));
+    }
+
     @Test void invalidTokensAudienceScopesAndRefreshRequestsAreRefused() throws Exception {
         String subject = rpt("subject", "read");
         denied(exchange("actor", subject, "invalid-synthetic-token", Map.of()));
@@ -257,6 +273,237 @@ public class BoundedDelegationIT {
         AccessToken nativeToken = issued(result);
         assertFalse(nativeToken.getOtherClaims().containsKey("act"));
         assertFalse(request("GET", issuer + "/bounded-delegation", null, null, null).body().path("enabled").asBoolean());
+    }
+
+    @Test void administrationCreatesUpdatesWithdrawsAndAuditsExecutableGrants() throws Exception {
+        consoleOwnership();
+        var settings = admin.realm(realm).toRepresentation();
+        settings.setAdminEventsEnabled(true);
+        settings.setAdminEventsDetailsEnabled(false);
+        admin.realm(realm).update(settings);
+        String id = created(admin("POST", components(), consoleGrant("first", "actor", "subject")));
+        AccessToken token = issued(exchange("actor", rpt("subject", "read"), rpt("actor", "read"), Map.of()));
+        assertEquals(Map.of(resource, Set.of("read")), NativeAuthority.fromToken(token).permissions());
+        JsonNode model = admin("GET", components() + "/" + id, null).body();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) model.path("config")).putArray("maxTTLSeconds").add("10");
+        admin("PUT", components() + "/" + id, model);
+        assertTrue(issued(exchange("actor", rpt("subject", "read"), rpt("actor", "read"), Map.of())).getExp() <= org.keycloak.common.util.Time.currentTime() + 10);
+        assertEquals("configured", admin("GET", diagnostics(), null).body().path("grants").get(0).path("state").asText());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) model.path("config")).putArray("enabled").add("false");
+        admin("PUT", components() + "/" + id, model);
+        denied(exchange("actor", rpt("subject", "read"), rpt("actor", "read"), Map.of()));
+        admin("DELETE", components() + "/" + id, null);
+        assertTrue(admin("GET", diagnostics(), null).body().path("grants").isEmpty());
+        actorRemovalCannotFallThroughToOrdinaryExchange();
+        Set<String> operations = new java.util.HashSet<>();
+        for (JsonNode event : admin("GET", "/admin/realms/" + realm + "/admin-events", null).body()) {
+            if (event.path("resourceType").asText().equals("COMPONENT")) operations.add(event.path("operationType").asText());
+        }
+        assertTrue(operations.containsAll(Set.of("CREATE", "UPDATE", "DELETE")));
+        assertEquals("keycloak-admin-console", admin.realm(realm).clients().get(clients.get("actor")).toRepresentation().getAttributes().get(GrantDocument.ACTOR_ATTRIBUTE));
+    }
+
+    @Test void administrationRejectsInvalidAmbiguousAndExternallyOwnedChanges() throws Exception {
+        var payload = consoleGrant("external-conflict", "actor", "subject");
+        assertEquals(400, componentRequest("POST", components(), payload, admin.tokenManager().getAccessTokenString()).status());
+        assertEquals(JSON.writeValueAsString(document), admin.realm(realm).clients().get(api).toRepresentation().getAttributes().get(GrantDocument.ATTRIBUTE));
+        consoleOwnership();
+        for (Map<String, List<String>> invalid : List.of(Map.of("maxDepth", List.of("5")), Map.of("maxTTLSeconds", List.of("601")),
+                Map.of("maxDepth", List.of("1.5")), Map.of("actor", List.of("subject")), Map.of("actor", List.of("missing")),
+                Map.of("scopes", List.of("admin")), Map.of("scopes", List.of("read", "read")), Map.of("resource", List.of("missing")),
+                Map.of("actorId", List.of(clients.get("actor"))), Map.of("audience", List.of("actor")), Map.of("enabled", List.of("yes")))) {
+            var bad = consoleGrant("invalid", "actor", "subject");
+            config(bad).putAll(invalid);
+            assertEquals(400, componentRequest("POST", components(), bad, admin.tokenManager().getAccessTokenString()).status());
+        }
+        String id = created(admin("POST", components(), consoleGrant("valid", "actor", "subject")));
+        assertEquals(400, componentRequest("POST", components(), consoleGrant("duplicate", "actor", "subject"), admin.tokenManager().getAccessTokenString()).status());
+        var stored = admin("GET", components() + "/" + id, null).body();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) stored.path("config")).putArray("subject").add("next");
+        assertEquals(400, componentRequest("PUT", components() + "/" + id, stored, admin.tokenManager().getAccessTokenString()).status());
+        issued(exchange("actor", rpt("subject", "read"), rpt("actor", "read"), Map.of()));
+    }
+
+    @Test void administrationPermissionsAreRealmScopedForApiAndConsoleStorage() throws Exception {
+        consoleOwnership();
+        String ordinary = rawIssued(token("next", Map.of("grant_type", "client_credentials")));
+        assertEquals(401, componentRequest("GET", diagnostics(), null, null).status());
+        assertEquals(403, componentRequest("GET", diagnostics(), null, ordinary).status());
+        assertEquals(403, componentRequest("POST", components(), consoleGrant("denied", "actor", "subject"), ordinary).status());
+        grantManagementRoles("next", "view-realm");
+        String viewer = rawIssued(token("next", Map.of("grant_type", "client_credentials")));
+        assertEquals(200, componentRequest("GET", diagnostics(), null, viewer).status());
+        assertEquals(200, componentRequest("GET", components(), null, viewer).status());
+        assertEquals(403, componentRequest("POST", components(), consoleGrant("denied", "actor", "subject"), viewer).status());
+        assertEquals(403, componentRequest("GET", "/admin/realms/master/bounded-delegation", null, viewer).status());
+        String id = created(admin("POST", components(), consoleGrant("protected", "actor", "subject")));
+        JsonNode model = admin("GET", components() + "/" + id, null).body();
+        assertEquals(403, componentRequest("PUT", components() + "/" + id, model, viewer).status());
+        assertEquals(403, componentRequest("DELETE", components() + "/" + id, null, viewer).status());
+    }
+
+    @Test void realmActivationRequiresExplicitSafeWithdrawal() throws Exception {
+        consoleOwnership();
+        var current = admin.realm(realm).toRepresentation();
+        current.setAttributes(Map.of()); admin.realm(realm).update(current);
+        String id = created(admin("POST", components(), Map.of("providerType", "org.keycloak.services.ui.extend.UiTabProvider", "providerId", "Bounded delegation",
+                "config", Map.of("enabled", List.of("true"), "confirmExpiry", List.of("false")))));
+        assertTrue(admin("GET", diagnostics(), null).body().path("enabled").asBoolean());
+        String grant = created(admin("POST", components(), consoleGrant("active", "actor", "subject")));
+        JsonNode entry = admin("GET", components() + "/" + id, null).body();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) entry.path("config")).putArray("enabled").add("false");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) entry.path("config")).putArray("confirmExpiry").add("true");
+        assertEquals(400, componentRequest("PUT", components() + "/" + id, entry, admin.tokenManager().getAccessTokenString()).status());
+        admin("DELETE", components() + "/" + grant, null);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) entry.path("config")).putArray("confirmExpiry").add("false");
+        assertEquals(400, componentRequest("PUT", components() + "/" + id, entry, admin.tokenManager().getAccessTokenString()).status());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) entry.path("config")).putArray("confirmExpiry").add("true");
+        admin("PUT", components() + "/" + id, entry);
+        assertFalse(admin("GET", diagnostics(), null).body().path("enabled").asBoolean());
+    }
+
+    @Test void independentAdministrativeWritesPreserveBothGrantsAndRevocationEvidence() throws Exception {
+        consoleOwnership();
+        String bearer = admin.tokenManager().getAccessTokenString();
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var attempts = List.<Callable<Result>>of(
+                    () -> componentRequest("POST", components(), consoleGrant("first", "actor", "subject"), bearer),
+                    () -> componentRequest("POST", components(), consoleGrant("second", "subject", "next"), bearer));
+            for (var response : executor.invokeAll(attempts)) assertEquals(201, response.get().status());
+        }
+        assertEquals(2, admin("GET", diagnostics(), null).body().path("grants").size());
+        String first = rawIssued(exchange("actor", rpt("subject", "read"), rpt("actor", "read"), Map.of()));
+        issued(exchange("subject", rpt("next", "read"), first, Map.of()));
+        String unused = rawIssued(exchange("actor", rpt("subject", "read"), rpt("actor", "read"), Map.of()));
+        for (JsonNode entry : admin("GET", components(), null).body()) {
+            if (entry.path("name").asText().equals("first")) admin("DELETE", components() + "/" + entry.path("id").asText(), null);
+        }
+        Result revoked = exchange("subject", rpt("next", "read"), unused, Map.of());
+        denied(revoked);
+        assertEquals("chain_revoked", revoked.body().path("error_description").asText());
+        verified(first); // Withdrawal does not claim immediate revocation of an offline JWT.
+    }
+
+    @Test void replacedNativeClientCannotInheritConsoleDelegation() throws Exception {
+        consoleOwnership();
+        String id = created(admin("POST", components(), consoleGrant("bound", "actor", "subject")));
+        admin.realm(realm).clients().get(clients.get("actor")).remove();
+        var replacement = new ClientRepresentation();
+        replacement.setClientId("actor"); replacement.setEnabled(true); replacement.setPublicClient(false);
+        replacement.setProtocol("openid-connect"); replacement.setServiceAccountsEnabled(true); replacement.setSecret(secret);
+        replacement.setAttributes(Map.of("standard.token.exchange.enabled", "true"));
+        try (var response = admin.realm(realm).clients().create(replacement)) { assertEquals(201, response.getStatus()); }
+        var model = admin("GET", components() + "/" + id, null).body();
+        assertEquals(400, componentRequest("PUT", components() + "/" + id, model, admin.tokenManager().getAccessTokenString()).status());
+        assertEquals("invalid_configuration", admin("GET", diagnostics(), null).body().path("grants").get(0).path("state").asText());
+        denied(exchange("actor", rpt("subject", "read"), rawIssued(token("actor", Map.of("grant_type", "client_credentials"))), Map.of()));
+    }
+
+    @Test void consoleCreatesEditsAndWithdrawsARealDelegation() throws Exception {
+        consoleOwnership();
+        var inactive = admin.realm(realm).toRepresentation(); inactive.setAttributes(Map.of()); admin.realm(realm).update(inactive);
+        var user = new UserRepresentation(); user.setUsername("fixture-administrator"); user.setEnabled(true);
+        user.setFirstName("Fixture"); user.setLastName("Administrator"); user.setEmail("fixture-admin@example.test"); user.setEmailVerified(true);
+        var password = new CredentialRepresentation(); password.setType("password"); password.setValue(secret); password.setTemporary(false);
+        user.setCredentials(List.of(password));
+        try (var response = admin.realm(realm).users().create(user)) { assertEquals(201, response.getStatus()); }
+        var account = admin.realm(realm).users().searchByUsername(user.getUsername(), true).getFirst();
+        var management = admin.realm(realm).clients().findByClientId("realm-management").getFirst();
+        admin.realm(realm).users().get(account.getId()).roles().clientLevel(management.getId()).add(List.of(
+                admin.realm(realm).clients().get(management.getId()).roles().get("realm-admin").toRepresentation()));
+        var options = new ChromeOptions(); options.addArguments("--headless=new", "--window-size=1440,1400", "--disable-dev-shm-usage");
+        WebDriver browser = new ChromeDriver(options);
+        try {
+            var wait = new WebDriverWait(browser, Duration.ofSeconds(30));
+            String console = urls.getBase() + "/admin/" + realm + "/console/#/" + realm;
+            browser.get(console + "/realm-settings/bounded-delegation");
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("username"))).sendKeys(user.getUsername());
+            browser.findElement(By.id("password")).sendKeys(secret);
+            browser.findElement(By.id("kc-login")).click();
+            wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("label[for='enabled']"))).click();
+            browser.findElement(By.cssSelector("button[data-testid='save']")).click();
+            wait.until(d -> administrativeEnabled());
+            browser.get(console + "/page-section/Bounded%20delegations/add");
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("input[data-testid='name']"))).sendKeys("Console invoice access");
+            selectClient(browser, wait, "Actor client", "actor");
+            selectClient(browser, wait, "Subject client", "subject");
+            selectClient(browser, wait, "Audience client", "invoice-api");
+            browser.findElement(By.cssSelector("input[data-testid='resource']")).sendKeys("invoice");
+            browser.findElement(By.cssSelector("input[aria-label='Resource scopes']")).sendKeys("read");
+            browser.findElement(By.cssSelector("label[for='enabled']")).click();
+            browser.findElement(By.cssSelector("button[data-testid='save']")).click();
+            wait.until(d -> administrativeCount() == 1);
+            String id = admin("GET", diagnostics(), null).body().path("grants").get(0).path("id").asText();
+            issued(exchange("actor", rpt("subject", "read"), rpt("actor", "read"), Map.of()));
+            browser.get(console + "/page-section/Bounded%20delegations/" + id);
+            var ttl = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("input[data-testid='maxTTLSeconds']")));
+            ttl.clear(); ttl.sendKeys("10");
+            browser.findElement(By.cssSelector("button[data-testid='save']")).click();
+            wait.until(d -> administrativeField(id, "maxTTLSeconds").equals("10"));
+            assertTrue(issued(exchange("actor", rpt("subject", "read"), rpt("actor", "read"), Map.of())).getExp() <= org.keycloak.common.util.Time.currentTime() + 10);
+            var screenshot = java.nio.file.Path.of("target", System.getProperty("bounded.keycloak.version"), "qualification", "console.png");
+            java.nio.file.Files.createDirectories(screenshot.getParent());
+            java.nio.file.Files.write(screenshot, ((org.openqa.selenium.TakesScreenshot) browser).getScreenshotAs(OutputType.BYTES));
+            browser.findElement(By.cssSelector("label[for='enabled']")).click();
+            browser.findElement(By.cssSelector("button[data-testid='save']")).click();
+            wait.until(d -> administrativeField(id, "enabled").equals("false"));
+            denied(exchange("actor", rpt("subject", "read"), rpt("actor", "read"), Map.of()));
+        } catch (RuntimeException | AssertionError failure) {
+            var screenshot = java.nio.file.Path.of("target", System.getProperty("bounded.keycloak.version"), "qualification", "console-failure.png");
+            java.nio.file.Files.createDirectories(screenshot.getParent());
+            java.nio.file.Files.write(screenshot, ((org.openqa.selenium.TakesScreenshot) browser).getScreenshotAs(OutputType.BYTES));
+            throw failure;
+        } finally { browser.quit(); }
+    }
+
+    private void selectClient(WebDriver browser, WebDriverWait wait, String label, String name) {
+        browser.findElement(By.xpath("//label[contains(.,'" + label + "')]/ancestor::div[.//button[@data-testid='select-client-button']][1]//button[@data-testid='select-client-button']")).click();
+        var modal = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("[data-testid='select-client-modal']")));
+        wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//*[@data-testid='select-client-modal']//tr[.//td[normalize-space(.)='" + name + "']]//input[@type='radio']"))).click();
+        wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("button[data-testid='confirm']"))).click();
+        wait.until(ExpectedConditions.invisibilityOfElementLocated(By.cssSelector("[data-testid='select-client-modal']")));
+    }
+    private int administrativeCount() {
+        try { return admin("GET", diagnostics(), null).body().path("grants").size(); }
+        catch (Exception ex) { throw new IllegalStateException("Cannot read synthetic grant inventory", ex); }
+    }
+    private boolean administrativeEnabled() {
+        try { return admin("GET", diagnostics(), null).body().path("enabled").asBoolean(); }
+        catch (Exception ex) { throw new IllegalStateException("Cannot read synthetic realm state", ex); }
+    }
+    private String administrativeField(String id, String name) {
+        try { return admin("GET", components() + "/" + id, null).body().path("config").path(name).path(0).asText(); }
+        catch (Exception ex) { throw new IllegalStateException("Cannot read synthetic grant configuration", ex); }
+    }
+
+    private String components() { return "/admin/realms/" + realm + "/components"; }
+    private String diagnostics() { return "/admin/realms/" + realm + "/bounded-delegation"; }
+    private void consoleOwnership() {
+        var client = admin.realm(realm).clients().get(api);
+        var current = client.toRepresentation();
+        var attributes = new HashMap<>(current.getAttributes()); attributes.put(GrantDocument.ATTRIBUTE, "");
+        current.setAttributes(attributes); client.update(current);
+        for (String name : List.of("actor", "subject", "next")) {
+            var target = admin.realm(realm).clients().get(clients.get(name));
+            var representation = target.toRepresentation();
+            var values = new HashMap<>(representation.getAttributes()); values.put(GrantDocument.ACTOR_ATTRIBUTE, "");
+            representation.setAttributes(values); target.update(representation);
+        }
+    }
+    private Map<String, Object> consoleGrant(String name, String actorName, String subjectName) {
+        return new HashMap<>(Map.of("providerType", "org.keycloak.services.ui.extend.UiPageProvider", "providerId", "Bounded delegations",
+                "config", new HashMap<>(Map.of("name", List.of(name), "actor", List.of(actorName), "subject", List.of(subjectName),
+                "audience", List.of("invoice-api"), "resource", List.of("invoice"), "scopes", List.of("read"), "maxDepth", List.of("2"),
+                "maxTTLSeconds", List.of("30"), "enabled", List.of("true")))));
+    }
+    @SuppressWarnings("unchecked") private Map<String, List<String>> config(Map<String, Object> value) { return (Map<String, List<String>>) value.get("config"); }
+    private Result componentRequest(String method, String path, Object body, String bearer) throws Exception { return request(method, urls.getBase() + path, null, bearer, body); }
+    private void grantManagementRoles(String clientName, String... names) {
+        var management = admin.realm(realm).clients().findByClientId("realm-management").getFirst();
+        var user = admin.realm(realm).clients().get(clients.get(clientName)).getServiceAccountUser();
+        var roles = Arrays.stream(names).map(name -> admin.realm(realm).clients().get(management.getId()).roles().get(name).toRepresentation()).toList();
+        admin.realm(realm).users().get(user.getId()).roles().clientLevel(management.getId()).add(roles);
+        admin.realm(realm).clients().get(clients.get(clientName)).getScopeMappings().clientLevel(management.getId()).add(roles);
     }
 
     private List<String> identityIDs() { return List.of(clients.get("actor"), clients.get("subject"), clients.get("next")); }
@@ -311,11 +558,13 @@ public class BoundedDelegationIT {
     }
     private Result admin(String method, String path, Object body) throws Exception {
         Result result = request(method, urls.getBase() + path, null, admin.tokenManager().getAccessTokenString(), body);
-        assertTrue(result.status() >= 200 && result.status() < 300, "Native fixture administration failed: HTTP " + result.status());
+        assertTrue(result.status() >= 200 && result.status() < 300, "Native fixture administration failed: HTTP " + result.status()
+                + " " + result.body().path("error").asText() + " " + result.body().path("errorMessage").asText());
         return result;
     }
     private String created(Result result) {
         String id = result.body().path("id").asText(result.body().path("_id").asText());
+        if (id.isBlank() && result.location() != null) id = result.location().substring(result.location().lastIndexOf('/') + 1);
         assertFalse(id.isBlank(), "Native object identity missing");
         return id;
     }
@@ -334,7 +583,7 @@ public class BoundedDelegationIT {
         }
         var result = HTTP.send(request.method(method, HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
         assertTrue(result.body().length() <= 1024 * 1024, "Response budget exceeded");
-        return new Result(result.statusCode(), result.body().isBlank() ? JSON.createObjectNode() : JSON.readTree(result.body()));
+        return new Result(result.statusCode(), result.body().isBlank() ? JSON.createObjectNode() : JSON.readTree(result.body()), result.headers().firstValue("Location").orElse(null));
     }
-    private record Result(int status, JsonNode body) { }
+    private record Result(int status, JsonNode body, String location) { }
 }

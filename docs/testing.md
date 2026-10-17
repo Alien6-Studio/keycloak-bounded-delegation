@@ -9,11 +9,19 @@ The framework owns a real local Keycloak distribution and its disposable databas
 Tests provision native clients, Authorization Services policies and administrative
 grants, obtain actual OAuth tokens and verify signatures, issuer and expiry.
 There are no mocking frameworks and no consumer/operator in this suite.
+Chrome and a compatible ChromeDriver are required for the console case; Selenium
+Manager can resolve the driver if it is not installed. The test opens an isolated
+browser profile, creates a synthetic administrator and never uses a personal
+browser session. Set `SE_AVOID_STATS=true` to disable Selenium Manager statistics.
 
 The native cases cover activation/discovery, unchanged unselected-realm exchange,
 permission intersection, audience/expiry/claim attenuation, noncommitted grants,
 concurrent replay, inherited depth, live policy withdrawal, stale identity
-bindings, invalid requests and actor-removal bypasses. This is single-node
+bindings, invalid requests and actor-removal bypasses. Administration cases add
+CRUD/withdrawal with actual token issuance, immutable client/resource identities,
+external-writer isolation, realm-scoped view/manage rights, safe activation and
+concurrent independent writes. A Chrome case creates, edits and disables a grant
+in the real console, verifies the OAuth effect, and captures `qualification/console.png`. This is single-node
 functional evidence, not cluster failover or production qualification.
 
 The runner rejects absent, failed, duplicate or skipped required tests. Reports

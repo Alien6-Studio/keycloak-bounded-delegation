@@ -74,6 +74,16 @@ are portable functional evidence. They exercise a private-SPI provider on releas
 SDKs. The actual upstream patch must use the accepted main-branch extension points,
 package/layout and existing test helpers; this repository is not that patch.
 
+## Administration and console integration
+
+The standalone extension supplies opt-in declarative console forms and native
+component Admin API validation. Those screens are prototype usability evidence,
+not a proposed mandatory upstream administration model. The first native change
+should expose accepted duration/depth settings through the existing client-policy
+configuration metadata and console forms where possible. Carry server validation,
+admin permissions/audit and browser regression tests into that focused patch.
+Agree placement and terminology with maintainers before introducing a new page.
+
 ## Questions to resolve
 
 - Which lifetime/depth configuration and inherited-state representation fit the

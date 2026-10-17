@@ -75,7 +75,10 @@ def validate_jar(path, version, compiled=None):
         require(len(names) == len(jar.namelist()), "Ambiguous duplicate JAR entries")
         require({"META-INF/LICENSE", "META-INF/NOTICE", "bounded-delegation.properties",
                  "META-INF/services/org.keycloak.protocol.oidc.TokenExchangeProviderFactory",
-                 "META-INF/services/org.keycloak.services.resource.RealmResourceProviderFactory"} <= names, "Provider metadata or license missing")
+                 "META-INF/services/org.keycloak.services.resource.RealmResourceProviderFactory",
+                 "META-INF/services/org.keycloak.services.resources.admin.ext.AdminRealmResourceProviderFactory",
+                 "META-INF/services/org.keycloak.services.ui.extend.UiPageProviderFactory",
+                 "META-INF/services/org.keycloak.services.ui.extend.UiTabProviderFactory"} <= names, "Provider metadata or license missing")
         require(jar.read("bounded-delegation.properties").decode().strip() == "version=" + version, "Packaged extension version mismatch")
         classes = [name for name in names if name.endswith(".class")]
         require(classes and all(name.startswith("io/alien6/keycloak/delegation/") for name in classes), "Unexpected shaded runtime/test dependency")

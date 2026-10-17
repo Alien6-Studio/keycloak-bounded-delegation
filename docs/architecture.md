@@ -8,6 +8,8 @@
 | `BoundedTokenExchangeProvider` | Verify native inputs, evaluate current native policies, constrain output before signing | Integrate with the native exchange pipeline after design agreement |
 | `GrantDocument`, `SoftwareProfile` | Strict experimental administrative schema and deployment limits | Prototype configuration, not an agreed Keycloak API |
 | `ChainState` | Expiring inherited policy evidence and atomic actor consumption | Cluster state and optional replay policy need separate review |
+| `AdministrativeGrants`, `DelegationPage`, `DelegationSettings` | Native component storage, server validation and optional console forms | Prototype administration; reuse agreed native screens upstream |
+| `AdministrationResource` | Realm-authorized structural diagnostics; writes stay in the native audited Admin API | Prototype diagnostics |
 | `CapabilityResource` | Public version/profile/activation metadata | Extension discovery, not a proposed mandatory native endpoint |
 
 The Java kernel does not depend on Kubernetes, an operator, a token broker or
@@ -58,6 +60,25 @@ The complete parser is [GrantDocument.java](../src/main/java/io/alien6/keycloak/
 from falling through to ordinary native exchange. Configuration writers own its
 lifecycle and must preserve other writers' bindings. The provider does not
 implement an external writer's ownership/reconciliation protocol.
+
+## Console-managed configuration
+
+The optional [console and component API](administration.md) stores one grant per
+native Keycloak component. No aggregate journal is rewritten on each save. The
+server binds native client/resource UUIDs at creation, validates scope membership
+and limits, and rejects audiences owned by an external document writer. The
+reserved binding `@keycloak.client.uuid` compares the exact native client UUID,
+not a client attribute or reusable name; external attribute/value bindings remain
+unchanged. The private generated grant snapshot is deterministic across JVMs,
+including scope ordering, so ancestor hashes do not depend on map iteration.
+
+Native component transactions, realm permissions and administrative audit events
+apply to both forms and direct API calls. Ordinary same-entry updates use native
+last-committed-write semantics; independent grant rows avoid aggregate lost updates.
+Changing/removing a component invalidates the audience snapshot for future chaining.
+Deleting a grant retains its actor guard; restoring ordinary exchange is a separate
+administrative trust-boundary change. The realm settings form checks withdrawal
+and requires explicit expiry confirmation before disabling enforcement.
 
 ## Revocation and removal
 

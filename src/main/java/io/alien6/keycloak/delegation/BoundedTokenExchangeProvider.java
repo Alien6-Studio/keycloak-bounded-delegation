@@ -67,7 +67,7 @@ public final class BoundedTokenExchangeProvider extends StandardTokenExchangePro
             if (params.getAudience() == null || params.getAudience().size() != 1) throw new Bounds.Rejected("audience_required");
             target = session.clients().getClientByClientId(realm, params.getAudience().getFirst());
             if (target == null || !target.isEnabled()) throw new Bounds.Rejected("audience_unavailable");
-            String configuration = target.getAttribute(GrantDocument.ATTRIBUTE);
+            String configuration = AdministrativeGrants.configuration(session, realm, target);
             GrantDocument document = GrantDocument.parse(configuration);
             if (!"Committed".equals(document.phase()) || !realm.getId().equals(document.realmID())
                     || !document.audience().resolve(session, realm).equals(target)) throw new Bounds.Rejected("grant_unavailable");
@@ -131,7 +131,7 @@ public final class BoundedTokenExchangeProvider extends StandardTokenExchangePro
     }
 
     private void softwareIdentity(ClientModel expected, UserModel user, AccessToken token) {
-        if (!expected.isServiceAccountsEnabled() || !expected.getId().equals(user.getServiceAccountClientLink())
+        if (expected.isPublicClient() || !expected.isServiceAccountsEnabled() || !expected.getId().equals(user.getServiceAccountClientLink())
                 || !user.equals(session.users().getServiceAccount(expected)) || !user.isEnabled()
                 || (!expected.getClientId().equals(token.getIssuedFor()) && token.getOtherClaims().get("act") == null)) {
             throw new Bounds.Rejected("software_identity_required");

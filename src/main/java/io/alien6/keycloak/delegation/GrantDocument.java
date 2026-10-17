@@ -39,7 +39,8 @@ public record GrantDocument(int version, String phase, String ownerUID, String r
         }
         public ClientModel resolve(KeycloakSession session, RealmModel realm) {
             ClientModel client = session.clients().getClientById(realm, id);
-            if (client == null || !client.isEnabled() || !value.equals(client.getAttribute(attribute))
+            boolean matches = AdministrativeGrants.NATIVE_ID.equals(attribute) ? id.equals(value) : client != null && value.equals(client.getAttribute(attribute));
+            if (client == null || !client.isEnabled() || !matches
                     || !"openid-connect".equals(client.getProtocol())) throw new Bounds.Rejected("stale_identity");
             return client;
         }

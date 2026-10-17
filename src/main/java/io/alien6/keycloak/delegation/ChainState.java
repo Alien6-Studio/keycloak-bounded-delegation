@@ -35,7 +35,7 @@ record ChainState(int depth, int maxDepth, int maxTTLSeconds, Map<String, String
             if (actorDepth(act) != depth) throw new Bounds.Rejected("chain_invalid");
             state.policies.forEach((id, expected) -> {
                 ClientModel target = session.clients().getClientById(realm, id);
-                String current = target == null || !target.isEnabled() ? null : target.getAttribute(GrantDocument.ATTRIBUTE);
+                String current = AdministrativeGrants.configuration(session, realm, target);
                 if (current == null || !expected.equals(hash(current))) throw new Bounds.Rejected("chain_revoked");
                 GrantDocument document = GrantDocument.parse(current);
                 if (!"Committed".equals(document.phase())) throw new Bounds.Rejected("chain_revoked");

@@ -51,7 +51,8 @@ does not exercise production GitHub OIDC signing or remote publication.
 
 1. Review the roadmap, compatibility window, dependency/security findings and
    release notes. Close only qualification work supported by actual evidence.
-2. Prepare a PR changing the POM to `0.1.0-rc.1` and reviewing CHANGELOG.md. Keep
+2. Prepare a PR changing the POM to `0.1.0-rc.1`, reviewing CHANGELOG.md and updating
+   README release status/badges and the supported-version security policy. Keep
    the complete SDK matrix and required `Extension checks` / CodeQL gates green.
 3. Merge through protected main. Create a **signed annotated** tag such as
    `v0.1.0-rc.1` for that exact GitHub-Verified source commit and push the tag.

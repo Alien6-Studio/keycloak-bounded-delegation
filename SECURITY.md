@@ -21,6 +21,17 @@ claimed. Shared-cache failover, release qualification and operational gaps are t
 the [project roadmap](docs/roadmap.md). Consumer deployment tests remain with consumers.
 See [README.md](README.md) for deployment and withdrawal requirements.
 
+## Administration
+
+Console-managed grants use native component Admin API permissions: `view-realm`
+for reads and `manage-realm` for writes, scoped to the target realm. Enable native
+administrative events to audit changes. The authenticated diagnostics endpoint
+exposes structural state, never tokens or credentials; the public discovery
+endpoint retains its limited seven-field contract. External-writer documents are
+not overwritten or silently merged. Actor protection remains after withdrawal.
+See [administration](docs/administration.md) for writer ownership, same-entry
+concurrency and the administrator's expiry confirmation before disabling enforcement.
+
 ## Repository protections
 
 [Default-branch](.github/rulesets/default-branch.json) and

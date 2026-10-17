@@ -8,15 +8,15 @@ the running Keycloak SDK. A realm administrator installs and activates the
 provider; an OAuth client cannot opt itself into an administrative grant.
 
 ```sh
-./mvnw -Dkeycloak.version=26.8.0 verify
+./mvnw -Dkeycloak.version=26.8.1 verify
 ```
 
-Copy `target/26.8.0/bounded-delegation-keycloak-26.8.0.jar` into the server's
+Copy `target/26.8.1/bounded-delegation-keycloak-26.8.1.jar` into the server's
 `providers/` directory, then run `bin/kc.sh build` as part of image construction.
 Follow Keycloak's [provider deployment guide](https://www.keycloak.org/docs/latest/server_development/index.html).
 Do not copy the sources or Javadoc JAR into `providers/`.
 
-## Explicit activation and native prerequisites
+## Native prerequisites
 
 - Keep standard token exchange V2 enabled.
 - Select a realm dedicated to the software profile with the realm attribute
@@ -34,8 +34,10 @@ Do not copy the sources or Javadoc JAR into `providers/`.
 Replace its placeholder IDs and install matching administrator-controlled client
 attributes and native resource policies; the example alone grants no access.
 
-These administrative attributes are an experimental protocol, not a stable
-Keycloak Admin Console feature. The [functional fixture](../src/it/java/io/alien6/keycloak/delegation/BoundedDelegationIT.java)
+For interactive administration, enable `declarative-ui` when building and starting
+the server, then follow the [console and component API guide](administration.md).
+Use either console-managed components or an external document writer per audience.
+These administrative attributes remain an experimental external-writer protocol. The [functional fixture](../src/it/java/io/alien6/keycloak/delegation/BoundedDelegationIT.java)
 provides a complete executable configuration using only native Admin/OAuth APIs
 and arbitrary deployment bindings. It never needs an operator or Kubernetes.
 Existing consumers can retain their own configuration writers.
