@@ -1,0 +1,24 @@
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      test-and-build-tools:
+        patterns:
+          - org.junit.*
+          - org.apache.maven.plugins:*
+    # SDK upgrades require updating and qualifying the exact compatibility matrix.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - '*'
+  - package-ecosystem: pip
+    directory: /scripts
+    schedule:
+      interval: weekly

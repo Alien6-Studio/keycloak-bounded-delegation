@@ -1,1 +1,5 @@
 /target/
+/.tools/
+/qualification/
+__pycache__/
+*.pyc

@@ -4,29 +4,31 @@ This standalone Apache-2.0 Java extension implements the opt-in
 `bounded-delegation/software-v1` profile. It has no Kubernetes or Hanko runtime
 dependency. It is maintained here against **exactly 26.7.5 and 26.8.0**, using
 Keycloak's private SPI; it is not an official Keycloak feature or a stable API.
-An upstream discussion draft is [prepared separately](../../docs/architecture/keycloak-bounded-delegation-upstream.md).
+An upstream discussion draft is [prepared separately](docs/upstream-proposal.md).
 
 ## Build and qualify
 
-Use JDK 21 or newer, Maven, Go and Docker. From the repository root:
+Use JDK 21 or newer, Maven, Go and Docker. From this standalone repository root (provide the exact clean consumer checkout
+identified in compatibility.json for native interoperability):
 
 ```sh
-make keycloak-extension-test KEYCLOAK_VERSION=26.7.5
-make keycloak-extension-test KEYCLOAK_VERSION=26.8.0
+make integration-test KEYCLOAK_VERSION=26.7.5 QUALIFICATION_DIR=/path/to/pinned/hankoshell-operator
+make integration-test KEYCLOAK_VERSION=26.8.0 QUALIFICATION_DIR=/path/to/pinned/hankoshell-operator
 ```
 
 Each command builds the matching SDK, runs Java kernel/parser tests, then runs
 real HTTPS Keycloak/controller tests with signature-verified tokens and Go's race
 detector. A missing JAR, inventory drift, failure or skip fails the dedicated gate.
 The ordinary stock-provider tests remain separate. CI runs both SDKs and retains
-Java reports, JAR digest/source identity and Go JUnit/results.json. No artifact is
-published. `make keycloak-extension-build` builds and tests Java only.
+Java reports, JAR digest/source identity and filtered Go interoperability results. No artifact is
+published. `make test` builds and tests Java only. The consumer harness is a test dependency;
+the JAR has no Hanko runtime dependency.
 
 The JAR is `target/VERSION/bounded-delegation-keycloak-VERSION.jar`. Match it to
 the running Keycloak version. Copy it into the server's `providers/` directory
 and run `bin/kc.sh build` when constructing the Keycloak image, following the
 [Keycloak extension guide](https://www.keycloak.org/docs/26.7.5/server_development/index.html).
-This operator does not silently install an extension into an existing server.
+Installation and realm activation remain explicit administrator operations.
 
 An external realm administrator must explicitly set the realm attribute
 `oauth.bounded-delegation.profile=software-v1`; standard token exchange V2 must
@@ -70,7 +72,7 @@ ancestor grant configuration hashes. Raw tokens and token hashes are not stored.
 Missing chain evidence refuses further exchange. Grant/owner changes invalidate
 future chained issuance. Deployments require a shared, correctly configured
 Keycloak cache; multi-node failover and installed Kubernetes flows still require
-#71 qualification. Do not claim a local single-node fixture establishes those.
+[installed and multi-node qualification](https://github.com/Alien6-Studio/hankoshell-operator/issues/71). Do not claim a local single-node fixture establishes those.
 
 Removing an owned permission disables its native grant before releasing only its
 actor ownership entries. Shared actors preserve other owners and their exchange
@@ -83,9 +85,9 @@ is a deployment operation, not ordinary permission revocation.
 
 ## Contribution and maintenance
 
-The [upstream proposal](../../docs/architecture/keycloak-bounded-delegation-upstream.md)
+The [upstream proposal](docs/upstream-proposal.md)
 separates optional Keycloak authority/depth/lifetime policy from Hanko ownership
 and replay requirements. A contribution to current Keycloak main must use its
 native test framework and agreed configuration hooks. This private-SPI adapter is
-not a drop-in upstream PR. Contributions follow [Apache-2.0](../../LICENSE), DCO
+not a drop-in upstream PR. Contributions follow [Apache-2.0](LICENSE), DCO
 sign-off, and explicit disclosure of AI agent assistance in the future PR.
