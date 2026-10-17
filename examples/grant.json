@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "phase": "Committed",
+  "ownerUID": "deployment-control-plane",
+  "revision": "reviewed-1",
+  "realmID": "REALM_ID",
+  "audience": {
+    "id": "API_CLIENT_UUID",
+    "attribute": "deployment.binding",
+    "value": "api-v1"
+  },
+  "grants": [
+    {
+      "name": "read-invoice",
+      "actor": {
+        "id": "ACTOR_CLIENT_UUID",
+        "attribute": "deployment.binding",
+        "value": "actor-v1"
+      },
+      "subject": {
+        "id": "SUBJECT_CLIENT_UUID",
+        "attribute": "deployment.binding",
+        "value": "subject-v1"
+      },
+      "authority": {
+        "scopes": [],
+        "realmRoles": [],
+        "clientRoles": {},
+        "permissions": {
+          "RESOURCE_UUID": [
+            "read"
+          ]
+        }
+      },
+      "conditions": [
+        {
+          "kind": "client",
+          "id": "ACTOR_CLIENT_UUID",
+          "attribute": "deployment.binding",
+          "value": "actor-v1"
+        },
+        {
+          "kind": "client",
+          "id": "SUBJECT_CLIENT_UUID",
+          "attribute": "deployment.binding",
+          "value": "subject-v1"
+        }
+      ],
+      "maxDepth": 2,
+      "maxTTLSeconds": 30
+    }
+  ],
+  "retiredActors": []
+}

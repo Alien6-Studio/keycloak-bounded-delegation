@@ -1,10 +1,12 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 package io.alien6.keycloak.delegation;
 
+import java.util.Map;
+
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
-import java.util.Map;
+
 import org.keycloak.common.Version;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
@@ -19,9 +21,9 @@ public final class CapabilityResource implements RealmResourceProvider, RealmRes
     private CapabilityResource(KeycloakSession session) { this.session = session; }
     @GET @jakarta.ws.rs.Path("") @Produces(MediaType.APPLICATION_JSON)
     public Map<String, Object> capabilities() {
-        return Map.of("contract", "bounded-delegation/software-v1", "extensionVersion", "0.1.0-SNAPSHOT",
-                "keycloakVersion", Version.VERSION, "experimental", true, "maxDepth", 4, "maxTTLSeconds", 600,
-                "enabled", session != null && "software-v1".equals(session.getContext().getRealm().getAttribute(GrantDocument.REALM_ATTRIBUTE))
+        return Map.of("contract", SoftwareProfile.CONTRACT, "extensionVersion", SoftwareProfile.VERSION,
+                "keycloakVersion", Version.VERSION, "experimental", true, "maxDepth", SoftwareProfile.MAX_DEPTH, "maxTTLSeconds", SoftwareProfile.MAX_TTL_SECONDS,
+                "enabled", session != null && SoftwareProfile.ID.equals(session.getContext().getRealm().getAttribute(GrantDocument.REALM_ATTRIBUTE))
                         && org.keycloak.common.Profile.isFeatureEnabled(org.keycloak.common.Profile.Feature.TOKEN_EXCHANGE_STANDARD_V2));
     }
     @Override public Object getResource() { return this; }

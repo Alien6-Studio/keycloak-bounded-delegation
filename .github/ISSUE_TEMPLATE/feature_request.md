@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Propose a bounded delegation policy or supported SDK.
+about: Propose an extension capability or a focused upstream integration.
 title: ""
 labels: enhancement
 assignees: ""
@@ -8,8 +8,15 @@ assignees: ""
 
 ### Problem and use case
 
-### Proposed behavior
+### Existing native Keycloak behavior
 
-### Compatibility and operational impact
+Include the exact version and links to relevant official mechanisms or related work.
 
-Consider authority, consent, token lifetime, depth, clustering, migration and rollback.
+### Proposed behavior and boundaries
+
+Describe authority, audience, lifetime/depth, consent and replay where relevant.
+
+### Compatibility, qualification and upstream scope
+
+Explain configuration migration, clustering/rollback evidence and whether this
+belongs in the extension, a consumer adapter or a focused native Keycloak change.

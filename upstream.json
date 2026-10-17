@@ -1,0 +1,11 @@
+{
+  "repository": "keycloak/keycloak",
+  "revision": "2827b3fa10f96c6795d641636397252a8186115a",
+  "reviewed_on": "2026-10-17",
+  "state": "source-reviewed-not-runtime-qualified",
+  "discussion": null,
+  "issue": null,
+  "pull_request": null,
+  "native_policy": "downscope-assertion-grant-enforcer",
+  "test_framework": "org.keycloak.testframework:keycloak-test-framework-core"
+}

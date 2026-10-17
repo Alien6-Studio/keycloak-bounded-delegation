@@ -1,35 +1,71 @@
 {
+  "schema": 1,
   "contract": "bounded-delegation/software-v1",
   "state": "experimental",
+  "java": 21,
   "keycloak": [
     "26.7.5",
-    "26.8.0"
+    "26.8.0",
+    "26.8.1"
   ],
-  "qualification": {
-    "repository": "Alien6-Studio/hankoshell-operator",
-    "revision": "7df9282fa27b55c0af6186564d53ccf6c1de5942",
-    "root": "TestRealKeycloakBoundedDelegationExtension",
+  "native": {
+    "test_class": "io.alien6.keycloak.delegation.BoundedDelegationIT",
     "tests": [
-      "TestRealKeycloakBoundedDelegationExtension",
-      "TestRealKeycloakBoundedDelegationExtension/authority_intersection_cannot_add_permissions_missing_from_the_subject",
-      "TestRealKeycloakBoundedDelegationExtension/cleanup_removes_only_its_grants_and_preserves_ordinary_authorization",
-      "TestRealKeycloakBoundedDelegationExtension/concurrent_replay_has_exactly_one_successful_native_issuance",
-      "TestRealKeycloakBoundedDelegationExtension/current_native_role_and_group_membership_constrain_already_issued_inputs",
-      "TestRealKeycloakBoundedDelegationExtension/depth_is_enforced_across_genuinely_issued_chained_exchanges",
-      "TestRealKeycloakBoundedDelegationExtension/extension_advertises_only_its_nonsecret_experimental_profile",
-      "TestRealKeycloakBoundedDelegationExtension/installation_preserves_unselected_realms_and_ordinary_native_exchange",
-      "TestRealKeycloakBoundedDelegationExtension/invalid_actor_widening_scope_and_undeclared_audience_are_refused",
-      "TestRealKeycloakBoundedDelegationExtension/journal_survives_restart_without_new_permission_writes_or_realm_administration",
-      "TestRealKeycloakBoundedDelegationExtension/live_native_authorization_denies_old_input_after_subject_policy_withdrawal",
-      "TestRealKeycloakBoundedDelegationExtension/lost_native_acknowledgement_at_Applied",
-      "TestRealKeycloakBoundedDelegationExtension/lost_native_acknowledgement_at_Committed",
-      "TestRealKeycloakBoundedDelegationExtension/lost_native_acknowledgement_at_Prepared",
-      "TestRealKeycloakBoundedDelegationExtension/lost_native_acknowledgement_at_Verified",
-      "TestRealKeycloakBoundedDelegationExtension/operator_preparation_proves_the_declared_intersection_without_writes",
-      "TestRealKeycloakBoundedDelegationExtension/prepared_grant_revoked_input_and_replaced_owner_are_refused",
-      "TestRealKeycloakBoundedDelegationExtension/provider_enforces_permission_audience_actor_and_expiration_bounds",
-      "TestRealKeycloakBoundedDelegationExtension/resource-server_controller_applies_observed_delegation_and_survives_restart",
-      "TestRealKeycloakBoundedDelegationExtension/short_inputs_bound_output_and_expired_inputs_cannot_issue_again"
-    ]
+      "actorRemovalCannotFallThroughToOrdinaryExchange",
+      "administrationCreatesUpdatesWithdrawsAndAuditsExecutableGrants",
+      "administrationPermissionsAreRealmScopedForApiAndConsoleStorage",
+      "administrationRejectsInvalidAmbiguousAndExternallyOwnedChanges",
+      "ancestorGrantChangeStopsChainingWithoutClaimingOfflineRevocation",
+      "concurrentActorReplayHasExactlyOneSuccessfulIssuance",
+      "consoleCreatesEditsAndWithdrawsARealDelegation",
+      "discoveryReportsOnlyVersionedPublicCapabilities",
+      "disjointInputPermissionsIssueNoToken",
+      "independentAdministrativeWritesPreserveBothGrantsAndRevocationEvidence",
+      "inheritedDepthRefusesTheThirdHop",
+      "intersectsBothInputsAndGrantAndBoundsAudienceExpiryAndClaims",
+      "invalidTokensAudienceScopesAndRefreshRequestsAreRefused",
+      "liveNativePolicyWithdrawalRefusesAlreadyIssuedInputs",
+      "nonCommittedAdministrativeGrantsIssueNoToken",
+      "publicSubjectCannotReusePreviouslyIssuedConfidentialInputs",
+      "realmActivationRequiresExplicitSafeWithdrawal",
+      "replacedAdministrativeIdentityBindingRefusesIssuance",
+      "replacedNativeClientCannotInheritConsoleDelegation",
+      "shortInputBoundsOutputAndUnusedExpiredInputCannotIssue",
+      "unselectedRealmPreservesOrdinaryNativeExchange"
+    ],
+    "minimum_unit_tests": 16
+  },
+  "integrations": {
+    "hanko": {
+      "repository": "Alien6-Studio/hankoshell-operator",
+      "revision": "7df9282fa27b55c0af6186564d53ccf6c1de5942",
+      "root": "TestRealKeycloakBoundedDelegationExtension",
+      "tests": [
+        "TestRealKeycloakBoundedDelegationExtension",
+        "TestRealKeycloakBoundedDelegationExtension/authority_intersection_cannot_add_permissions_missing_from_the_subject",
+        "TestRealKeycloakBoundedDelegationExtension/cleanup_removes_only_its_grants_and_preserves_ordinary_authorization",
+        "TestRealKeycloakBoundedDelegationExtension/concurrent_replay_has_exactly_one_successful_native_issuance",
+        "TestRealKeycloakBoundedDelegationExtension/current_native_role_and_group_membership_constrain_already_issued_inputs",
+        "TestRealKeycloakBoundedDelegationExtension/depth_is_enforced_across_genuinely_issued_chained_exchanges",
+        "TestRealKeycloakBoundedDelegationExtension/extension_advertises_only_its_nonsecret_experimental_profile",
+        "TestRealKeycloakBoundedDelegationExtension/installation_preserves_unselected_realms_and_ordinary_native_exchange",
+        "TestRealKeycloakBoundedDelegationExtension/invalid_actor_widening_scope_and_undeclared_audience_are_refused",
+        "TestRealKeycloakBoundedDelegationExtension/journal_survives_restart_without_new_permission_writes_or_realm_administration",
+        "TestRealKeycloakBoundedDelegationExtension/live_native_authorization_denies_old_input_after_subject_policy_withdrawal",
+        "TestRealKeycloakBoundedDelegationExtension/lost_native_acknowledgement_at_Applied",
+        "TestRealKeycloakBoundedDelegationExtension/lost_native_acknowledgement_at_Committed",
+        "TestRealKeycloakBoundedDelegationExtension/lost_native_acknowledgement_at_Prepared",
+        "TestRealKeycloakBoundedDelegationExtension/lost_native_acknowledgement_at_Verified",
+        "TestRealKeycloakBoundedDelegationExtension/operator_preparation_proves_the_declared_intersection_without_writes",
+        "TestRealKeycloakBoundedDelegationExtension/prepared_grant_revoked_input_and_replaced_owner_are_refused",
+        "TestRealKeycloakBoundedDelegationExtension/provider_enforces_permission_audience_actor_and_expiration_bounds",
+        "TestRealKeycloakBoundedDelegationExtension/resource-server_controller_applies_observed_delegation_and_survives_restart",
+        "TestRealKeycloakBoundedDelegationExtension/short_inputs_bound_output_and_expired_inputs_cannot_issue_again"
+      ],
+      "keycloak": [
+        "26.7.5",
+        "26.8.0"
+      ]
+    }
   }
 }

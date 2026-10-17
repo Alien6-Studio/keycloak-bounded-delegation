@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 package io.alien6.keycloak.delegation;
 
-import jakarta.ws.rs.core.Response;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import jakarta.ws.rs.core.Response;
+
 import org.keycloak.OAuth2Constants;
 import org.keycloak.OAuthErrorException;
 import org.keycloak.common.util.Time;
@@ -37,7 +39,7 @@ public final class BoundedTokenExchangeProvider extends StandardTokenExchangePro
     @Override public boolean supports(TokenExchangeContext context) {
         // Claim the whole internal access-token route before native/legacy providers.
         // Missing actor_token must not launder a delegated token through another route.
-        return "software-v1".equals(context.getRealm().getAttribute(GrantDocument.REALM_ATTRIBUTE))
+        return SoftwareProfile.ID.equals(context.getRealm().getAttribute(GrantDocument.REALM_ATTRIBUTE))
                 && (context.getParams().getActorToken() != null || context.getParams().getSubjectToken() != null);
     }
 
@@ -65,7 +67,7 @@ public final class BoundedTokenExchangeProvider extends StandardTokenExchangePro
             if (params.getAudience() == null || params.getAudience().size() != 1) throw new Bounds.Rejected("audience_required");
             target = session.clients().getClientByClientId(realm, params.getAudience().getFirst());
             if (target == null || !target.isEnabled()) throw new Bounds.Rejected("audience_unavailable");
-            String configuration = target.getAttribute(GrantDocument.ATTRIBUTE);
+            String configuration = AdministrativeGrants.configuration(session, realm, target);
             GrantDocument document = GrantDocument.parse(configuration);
             if (!"Committed".equals(document.phase()) || !realm.getId().equals(document.realmID())
                     || !document.audience().resolve(session, realm).equals(target)) throw new Bounds.Rejected("grant_unavailable");
@@ -129,7 +131,7 @@ public final class BoundedTokenExchangeProvider extends StandardTokenExchangePro
     }
 
     private void softwareIdentity(ClientModel expected, UserModel user, AccessToken token) {
-        if (!expected.isServiceAccountsEnabled() || !expected.getId().equals(user.getServiceAccountClientLink())
+        if (expected.isPublicClient() || !expected.isServiceAccountsEnabled() || !expected.getId().equals(user.getServiceAccountClientLink())
                 || !user.equals(session.users().getServiceAccount(expected)) || !user.isEnabled()
                 || (!expected.getClientId().equals(token.getIssuedFor()) && token.getOtherClaims().get("act") == null)) {
             throw new Bounds.Rejected("software_identity_required");
