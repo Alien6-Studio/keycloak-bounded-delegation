@@ -17,7 +17,6 @@ jobs:
     timeout-minutes: 10
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      PRE_COMMIT_HOME: ${{ runner.temp }}/extension-pre-commit
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -31,6 +30,8 @@ jobs:
           python3 -m pip install -r scripts/requirements.txt
           make hook-tools
       - name: Run contributor hooks and policy regression tests
+        env:
+          PRE_COMMIT_HOME: ${{ runner.temp }}/extension-pre-commit
         run: make hooks-check policy-check
       - name: Scan the complete component history for secrets
         run: .tools/hook-tools/gitleaks git --redact --no-banner .
