@@ -457,8 +457,15 @@ public class BoundedDelegationIT {
     }
 
     private void selectClient(WebDriver browser, WebDriverWait wait, String label, String name) {
+        if (browser.findElements(By.cssSelector("button[data-testid='select-client-button']")).isEmpty()) {
+            // 26.7 uses the native typeahead; 26.8 renders a client-selection modal.
+            var input = browser.findElement(By.xpath("//label[contains(.,'" + label + "')]/ancestor::div[.//input[@role='combobox']][1]//input[@role='combobox']"));
+            input.click(); input.sendKeys(name);
+            wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//*[@role='option'][normalize-space(.)='" + name + "']"))).click();
+            return;
+        }
         browser.findElement(By.xpath("//label[contains(.,'" + label + "')]/ancestor::div[.//button[@data-testid='select-client-button']][1]//button[@data-testid='select-client-button']")).click();
-        var modal = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("[data-testid='select-client-modal']")));
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("[data-testid='select-client-modal']")));
         wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//*[@data-testid='select-client-modal']//tr[.//td[normalize-space(.)='" + name + "']]//input[@type='radio']"))).click();
         wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("button[data-testid='confirm']"))).click();
         wait.until(ExpectedConditions.invisibilityOfElementLocated(By.cssSelector("[data-testid='select-client-modal']")));
