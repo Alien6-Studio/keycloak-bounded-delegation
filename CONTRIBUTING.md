@@ -7,6 +7,17 @@ questions in Discussions and use issue templates for reproducible bugs/proposals
 Security and conduct reports use [SECURITY.md](SECURITY.md) and
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
+Include the extension revision, Keycloak/JDK versions, cache topology and a
+synthetic configuration in reports. Alien6 Studio maintains this experimental
+project on a best-effort basis; [CODEOWNERS](.github/CODEOWNERS) identifies the
+maintainer. Maintainers review scope, compatibility and release evidence through
+pull requests. Upstream Keycloak acceptance follows its own contribution process.
+
+The Apache-2.0 source was extracted from `hankoshell-operator` at
+[`7df9282`](https://github.com/Alien6-Studio/hankoshell-operator/commit/7df9282fa27b55c0af6186564d53ccf6c1de5942)
+with subtree history and DCO sign-offs preserved. The original commit signature
+remains in that repository; standalone changes use separately signed commits.
+
 ## Local development
 
 Use JDK 21, Chrome for console tests, and the pinned Maven wrapper. Run SDK variants sequentially locally:
