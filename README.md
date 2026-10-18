@@ -73,5 +73,4 @@ The first planned prerelease is **0.1.0-rc.1**; nothing is published yet. The
 [release workflow](docs/releases.md) qualifies every SDK and prepares versioned
 JARs, sources, Javadoc, SBOM, checksums and attestations in a GitHub draft.
 
-[Architecture](docs/architecture.md) · [Support](SUPPORT.md) ·
-[Governance](GOVERNANCE.md) · [Historical provenance](SOURCE.md)
+[Architecture](docs/architecture.md) · [Roadmap](docs/roadmap.md)
