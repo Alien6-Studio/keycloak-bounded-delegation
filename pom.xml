@@ -56,7 +56,7 @@
         <dependency><groupId>org.keycloak.testframework</groupId><artifactId>keycloak-test-framework-ui</artifactId><scope>test</scope></dependency>
       </dependencies>
       <build><plugins>
-        <plugin><groupId>org.codehaus.mojo</groupId><artifactId>build-helper-maven-plugin</artifactId><version>3.2.0</version><executions><execution><id>native-test-sources</id><phase>generate-test-sources</phase><goals><goal>add-test-source</goal></goals><configuration><sources><source>src/it/java</source></sources></configuration></execution></executions></plugin>
+        <plugin><groupId>org.codehaus.mojo</groupId><artifactId>build-helper-maven-plugin</artifactId><version>3.6.2</version><executions><execution><id>native-test-sources</id><phase>generate-test-sources</phase><goals><goal>add-test-source</goal></goals><configuration><sources><source>src/it/java</source></sources></configuration></execution></executions></plugin>
         <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-failsafe-plugin</artifactId><version>3.6.0</version><configuration>
           <argLine>-XX:+ExitOnOutOfMemoryError -Djava.util.logging.manager=org.jboss.logmanager.LogManager -Djava.util.concurrent.ForkJoinPool.common.threadFactory=io.quarkus.bootstrap.forkjoin.QuarkusForkJoinWorkerThreadFactory</argLine>
           <systemPropertyVariables><kc.test.server>distribution</kc.test.server><kc.test.server.hot.deploy>true</kc.test.server.hot.deploy><bounded.keycloak.version>${keycloak.version}</bounded.keycloak.version><quarkus.bootstrap.effective-model-builder>true</quarkus.bootstrap.effective-model-builder></systemPropertyVariables>
