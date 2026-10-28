@@ -167,23 +167,33 @@ class Lab:
         (self.directory / ".dockerignore").write_text("*\n!Dockerfile\n!bounded-delegation.jar\n!cache-lab.xml\n")
         self.image = self.name + ":candidate"
         self.docker("build", "--network=none", "--tag", self.image, self.directory, timeout=300)
+        self.cache_addresses = cache_addresses
+        nodes = self.start_nodes(self.image, context)
+        configuration = {"schema": 1, "issuer": self.issuer, "endpoints": ["https://localhost:" + str(port) for port in self.ports],
+            "adminUser": "cluster-admin", "adminPassword": self.password, "network": cache_name, "cacheAddresses": cache_addresses, "nodes": nodes,
+            "label": self.name, "ca": str(self.directory / "tls.crt"), "keycloak": self.version, "stateStore": self.state_store}
+        path = self.directory / "private-cluster.json"
+        path.write_text(json.dumps(configuration)); path.chmod(0o600)
+        return path
+
+    def start_nodes(self, image, context):
         nodes = []
         for index, port in enumerate(self.ports):
             node_env = self.directory / ("node" + str(index) + ".env")
             node_env.write_text("KC_DB_PASSWORD=" + self.password + "\nKC_BOOTSTRAP_ADMIN_PASSWORD=" + self.password + "\n"
-                               "JAVA_OPTS_APPEND=-Djgroups.bind.address=" + cache_addresses[index] + "\n")
+                               "JAVA_OPTS_APPEND=-Djgroups.bind.address=" + self.cache_addresses[index] + "\n")
             node_env.chmod(0o600)
             node = self.container("node" + str(index), "--network", self.name, "--hostname", self.name + "-node" + str(index),
                 "--memory", "1g", "--cpus", "2",
                 "--env-file", node_env, "--publish", f"127.0.0.1:{port}:8443", "--volume", str(self.directory) + ":/fixture:ro",
-                self.image, "start", "--optimized",
+                image, "start", "--optimized",
                 "--db-url=jdbc:postgresql://database/keycloak", "--db-username=keycloak",
                 "--bootstrap-admin-username=cluster-admin", "--hostname=" + self.issuer, "--http-enabled=false",
                 "--https-certificate-file=/fixture/tls.crt", "--https-certificate-key-file=/fixture/tls.key",
                 "--cache=ispn", "--cache-stack=jdbc-ping", "--cache-config-file=cache-lab.xml",
                 *( ["--cache-embedded-cluster-name=" + self.name] if tuple(map(int, self.version.split("."))) >= (26, 8, 0) else [] ),
                 "--log-level=info,org.keycloak.connections.infinispan.DefaultInfinispanConnectionProviderFactory:debug")
-            self.docker("network", "connect", "--ip", cache_addresses[index], cache_name, node)
+            self.docker("network", "connect", "--ip", self.cache_addresses[index], self.cache_network, node)
             self.docker("start", node)
             nodes.append(node)
             deadline = time.monotonic() + 180
@@ -201,12 +211,16 @@ class Lab:
                 raise ValueError("Isolated HTTPS Keycloak node did not become ready")
         self.await_cluster(nodes)
         self.nodes = nodes
-        configuration = {"schema": 1, "issuer": self.issuer, "endpoints": ["https://localhost:" + str(port) for port in self.ports],
-            "adminUser": "cluster-admin", "adminPassword": self.password, "network": cache_name, "cacheAddresses": cache_addresses, "nodes": nodes,
-            "label": self.name, "ca": str(self.directory / "tls.crt"), "keycloak": self.version, "stateStore": self.state_store}
-        path = self.directory / "private-cluster.json"
-        path.write_text(json.dumps(configuration)); path.chmod(0o600)
-        return path
+        return nodes
+
+    def replace_nodes(self, image, context):
+        # Stop both processes before replacing either binary. This qualifies a
+        # coordinated restart, not a mixed-version rolling upgrade.
+        for node in self.nodes:
+            self.docker("stop", "--time", "10", node)
+        for node in self.nodes:
+            self.docker("rm", "--volumes", node)
+        return self.start_nodes(image, context)
 
     def await_cluster(self, nodes):
         deadline = time.monotonic() + 120

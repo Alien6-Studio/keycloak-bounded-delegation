@@ -89,5 +89,31 @@
     "feature": "stateless",
     "required_for_release": true,
     "images": "cluster-images.json"
+  },
+  "lifecycle": {
+    "baseline": "lifecycle-baseline.json",
+    "required_for_release": true,
+    "checks": [
+      "baseline_signed_software_exchange",
+      "upgrade_preserves_native_identities_and_journal",
+      "upgrade_preserves_spent_actor",
+      "upgrade_accepts_fresh_software_evidence",
+      "task_option_is_not_implicitly_enabled",
+      "task_opt_in_issues_signed_binding",
+      "task_online_check_allows_current_operation",
+      "task_cancellation_refuses_online_use",
+      "withdrawn_task_grant_refuses_new_issuance",
+      "rollback_preserves_native_identities_and_journal",
+      "rollback_preserves_spent_actor",
+      "rollback_accepts_fresh_software_evidence",
+      "removal_preparation_refuses_new_issuance",
+      "removed_provider_is_absent",
+      "removal_preserves_native_identities_and_journal",
+      "removed_provider_cannot_issue_delegation",
+      "removal_preserves_native_client_credentials",
+      "reinstall_retains_explicit_exchange_disable",
+      "reinstall_preserves_spent_actor",
+      "explicit_reactivation_accepts_fresh_software_evidence"
+    ]
   }
 }

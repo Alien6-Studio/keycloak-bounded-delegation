@@ -6,6 +6,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 import yaml
+import lifecycle
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -46,6 +47,12 @@ def check(root=ROOT):
                    for version, image in images["keycloak"].items())
             or not re.fullmatch(r"docker\.io/library/postgres:[0-9.]+@sha256:[0-9a-f]{64}", images.get("postgres", ""))):
         raise ValueError("Native database/cluster qualification inventory drift")
+    lifetime = contract["lifecycle"]
+    baseline = json.loads((root / lifetime["baseline"]).read_text())
+    if (lifetime.get("required_for_release") is not True or lifetime.get("checks") != list(lifecycle.CHECKS)
+            or baseline.get("schema") != 1 or baseline.get("repository") != "Alien6-Studio/keycloak-bounded-delegation"
+            or not re.fullmatch(r"[0-9a-f]{40}", baseline.get("revision", ""))):
+        raise ValueError("Native lifecycle qualification inventory drift")
     for filename in ("ci.yml", "release.yml"):
         workflow = yaml.safe_load((root / ".github/workflows" / filename).read_text())
         if workflow["jobs"]["qualify"]["strategy"]["matrix"]["keycloak"] != versions:

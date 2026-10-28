@@ -25,6 +25,7 @@ Each SDK cell supplies:
   excluding test dependencies. These provided libraries are not shaded into the JAR.
 - `...-qualification.json`: clean source/SDK identity, exact native outcomes and JAR SHA256.
 - `...-cluster-qualification.json`: exact two-node topology, pinned images, JAR SHA256 and failure measurements.
+- `...-lifecycle-qualification.json`: baseline/candidate JAR identities, persistent native graph, coordinated upgrade/rollback and guarded removal/reinstall checks.
 - `release-SDK.json`: asset hashes and matrix-cell identity.
 
 The complete bundle adds LICENSE, NOTICE, the exact committed source archive,
@@ -43,7 +44,7 @@ make release-dry-run KEYCLOAK_VERSION=26.8.0
 make release-dry-run KEYCLOAK_VERSION=26.8.1
 ```
 
-Each command runs native and two-node database-state qualification, generates all SDK assets and checks the
+Each command runs native, two-node database-state and provider lifecycle qualification, generates all SDK assets and checks the
 provider's Java 21 bytecode, packaged version/licenses, SDK inventory and hashes.
 CI also downloads all immutable SDK candidates and exercises the full bundle
 assembly. Candidate manifests are explicitly non-releasable. Local/CI rehearsal

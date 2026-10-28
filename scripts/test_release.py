@@ -16,6 +16,20 @@ spec.loader.exec_module(qualification)
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_lifecycle_proof_requires_exact_binary_baseline_checks_and_clean_source(self):
+        contract = {"checks": ["upgrade", "rollback", "removal"]}
+        baseline = {"schema": 1, "repository": "example/provider", "revision": "b" * 40}
+        images = {"postgres": "postgres@sha256:" + "a" * 64, "keycloak": {"26.8.1": "keycloak@sha256:" + "b" * 64}}
+        valid = {"schema": 1, "complete": True, "revision": "a" * 40, "keycloak": "26.8.1", "jar_sha256": "c" * 64,
+                 "baseline": {**baseline, "jar_sha256": "d" * 64}, "checks": dict.fromkeys(contract["checks"], True),
+                 "images": {"postgres": images["postgres"], "keycloak": images["keycloak"]["26.8.1"]}, "worktree_dirty": False}
+        release.validate_lifecycle(valid, "26.8.1", "a" * 40, "c" * 64, contract, baseline, images)
+        for change in ({"complete": False}, {"revision": "b" * 40}, {"keycloak": "26.8.0"}, {"jar_sha256": "e" * 64},
+                       {"baseline": {**baseline, "revision": "e" * 40, "jar_sha256": "d" * 64}}, {"baseline": baseline},
+                       {"checks": {}}, {"checks": dict.fromkeys(contract["checks"], False)}, {"images": {}}, {"worktree_dirty": True}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                release.validate_lifecycle({**valid, **change}, "26.8.1", "a" * 40, "c" * 64, contract, baseline, images)
+
     def test_cluster_proof_rejects_foreign_incomplete_dirty_or_cache_only_runs(self):
         contract = {"state_store": "database", "test_class": "native.Cluster", "tests": ["replay", "recovery"]}
         images = {"postgres": "postgres@sha256:" + "a" * 64, "keycloak": {"26.8.1": "keycloak@sha256:" + "b" * 64}}
@@ -112,7 +126,7 @@ class ReleaseTests(unittest.TestCase):
             incoming = root / "incoming"
             incoming.mkdir()
             files = {}
-            for suffix in (".jar", "-sources.jar", "-javadoc.jar", "-sbom.json", "-qualification.json", "-cluster-qualification.json"):
+            for suffix in (".jar", "-sources.jar", "-javadoc.jar", "-sbom.json", "-qualification.json", "-cluster-qualification.json", "-lifecycle-qualification.json"):
                 name = "bounded-delegation-0.1.0-rc.1-keycloak-26.8.0" + suffix
                 (incoming / name).write_bytes(b"synthetic asset")
                 files[name] = hashlib.sha256(b"synthetic asset").hexdigest()

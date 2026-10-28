@@ -110,6 +110,18 @@ def validate_cluster(cluster, sdk, revision, jar_sha256, contract, images, dry_r
     require(dry_run or cluster.get("worktree_dirty") is False, "Cluster qualification must bind clean source")
 
 
+def validate_lifecycle(proof, sdk, revision, jar_sha256, contract, baseline, images, dry_run=False):
+    require(proof.get("schema") == 1 and proof.get("complete") is True and proof.get("revision") == revision
+            and proof.get("keycloak") == sdk and proof.get("jar_sha256") == jar_sha256
+            and proof.get("images") == {"keycloak": images["keycloak"][sdk], "postgres": images["postgres"]}
+            and set(proof.get("checks", {})) == set(contract["checks"])
+            and all(value is True for value in proof["checks"].values())
+            and {key: proof.get("baseline", {}).get(key) for key in baseline} == baseline
+            and re.fullmatch(r"[0-9a-f]{64}", proof.get("baseline", {}).get("jar_sha256", "")),
+            "Missing or foreign provider lifecycle qualification")
+    require(dry_run or proof.get("worktree_dirty") is False, "Lifecycle qualification must bind clean source")
+
+
 def package(sdk, output, dry_run=False):
     contract = document(ROOT / "compatibility.json")
     require(sdk in contract["keycloak"], "Unqualified SDK")
@@ -131,6 +143,9 @@ def package(sdk, output, dry_run=False):
     cluster = document(target / "qualification/cluster.json")
     images = document(ROOT / contract["cluster"]["images"])
     validate_cluster(cluster, sdk, revision, digest(binary), contract["cluster"], images, dry_run)
+    lifecycle = document(target / "qualification/lifecycle.json")
+    baseline = document(ROOT / contract["lifecycle"]["baseline"])
+    validate_lifecycle(lifecycle, sdk, revision, digest(binary), contract["lifecycle"], baseline, images, dry_run)
     validate_jar(binary, version, target / "classes", sdk)
     sbom = document(target / "sbom.json")
     require(sbom.get("bomFormat") == "CycloneDX" and sbom.get("metadata", {}).get("component", {}).get("version") == version,
@@ -141,7 +156,8 @@ def package(sdk, output, dry_run=False):
         (".jar", binary), ("-sources.jar", target / (stem + "-sources.jar")),
         ("-javadoc.jar", target / (stem + "-javadoc.jar")), ("-sbom.json", target / "sbom.json"),
         ("-qualification.json", target / "qualification/results.json"),
-        ("-cluster-qualification.json", target / "qualification/cluster.json"))}
+        ("-cluster-qualification.json", target / "qualification/cluster.json"),
+        ("-lifecycle-qualification.json", target / "qualification/lifecycle.json"))}
     require(not output.exists() or not any(output.iterdir()), "Use an empty staging directory; assets are never overwritten")
     output.mkdir(parents=True, exist_ok=True)
     files = {}
@@ -168,7 +184,7 @@ def assemble(incoming, output, dry_run=False):
         require(record.get("schema") == 1 and record.get("version") == version and record.get("revision") == revision
                 and record.get("keycloak") == sdk and (dry_run or record.get("releasable") is True and record.get("worktree_dirty") is False), "Foreign or non-releasable SDK cell")
         names = {"bounded-delegation-" + version + "-keycloak-" + sdk + suffix
-                 for suffix in (".jar", "-sources.jar", "-javadoc.jar", "-sbom.json", "-qualification.json", "-cluster-qualification.json")}
+                 for suffix in (".jar", "-sources.jar", "-javadoc.jar", "-sbom.json", "-qualification.json", "-cluster-qualification.json", "-lifecycle-qualification.json")}
         require(isinstance(record.get("files"), dict) and set(record["files"]) == names, "Unexpected release asset inventory")
         for name, value in record["files"].items():
             require(re.fullmatch(r"[0-9a-f]{64}", value) is not None and digest(incoming / name) == value, "Release asset checksum mismatch")
@@ -185,7 +201,8 @@ def assemble(incoming, output, dry_run=False):
         "Source: `" + revision + "`. Qualified SDKs: " + ", ".join(contract["keycloak"]) + ".", "",
         "Assets include the SDK-specific provider, sources, Javadoc, CycloneDX inventory and native qualification evidence.",
         "Provided Keycloak dependencies are inventoried but not shaded into the provider.", "",
-        "Multi-node cache/failover, production readiness and human delegation remain unqualified.",
+        "Two-node replay and coordinated provider replacement are qualified only for the recorded database-backed topology and exact SDKs.",
+        "Mixed-version rolling upgrades, sustained production load, human delegation and cache-only recovery remain unqualified.",
         "Offline JWT revocation is bounded by expiry. Withdraw grants and wait their maximum lifetime before removing enforcement.", "",
         "Verify SHA256SUMS and `gh attestation verify ASSET --repo Alien6-Studio/keycloak-bounded-delegation` before installation.",
         "Copy only the provider JAR matching your Keycloak SDK into providers/ and rebuild the server.", "",
