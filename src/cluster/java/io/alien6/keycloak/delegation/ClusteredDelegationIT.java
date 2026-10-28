@@ -168,14 +168,20 @@ class ClusteredDelegationIT {
 
     @Test @Order(4) void killedNodeAndRejoinCannotForgetSpentActorEvidence() throws Exception {
         String actor = input(0, "actor"), subject = input(1, "subject");
-        raw(exchange(0, "actor", subject, actor));
+        String issued = raw(exchange(0, "actor", subject, actor));
         String node = configuration.path("nodes").get(0).asText();
         long started = System.nanoTime();
         docker("kill", "--signal", "KILL", node);
-        try { denied(exchange(1, "actor", subject, actor)); }
+        try {
+            denied(exchange(1, "actor", subject, actor));
+            String continued = raw(exchange(1, "subject", input(1, "next"), issued));
+            assertEquals(2, ChainState.actorDepth(verified(continued).getOtherClaims().get("act")));
+            assertTrue(verified(continued).getExp() <= verified(issued).getExp());
+        }
         finally { docker("start", node); }
         await(() -> request(0, "GET", "/realms/" + realm + "/.well-known/openid-configuration", null, null, null).status() == 200, 120);
         awaitCluster(); denied(exchange(0, "actor", subject, actor)); denied(exchange(1, "actor", subject, actor));
+        denied(exchange(0, "subject", input(1, "next"), issued));
         raw(exchange(1, "actor", input(0, "subject"), input(1, "actor")));
         measurements.put("node_recovery_ms", (System.nanoTime() - started) / 1_000_000);
         check("node_kill_rejoin_preserves_spent_actors", true);
@@ -356,7 +362,7 @@ class ClusteredDelegationIT {
         return count;
     }
     private List<Attempt> parallel(int count, Exchange action) throws Exception {
-        try (var executor = Executors.newFixedThreadPool(Math.min(count, 16))) {
+        try (var executor = Executors.newFixedThreadPool(count)) {
             CountDownLatch start = new CountDownLatch(1); List<Callable<Attempt>> calls = new ArrayList<>();
             for (int i = 0; i < count; i++) { final int index = i; calls.add(() -> { start.await(); long began = System.nanoTime(); Result result = action.run(index); return new Attempt(result, (System.nanoTime() - began) / 1_000_000.0); }); }
             var futures = calls.stream().map(executor::submit).toList(); start.countDown(); List<Attempt> result = new ArrayList<>();

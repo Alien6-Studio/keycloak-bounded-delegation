@@ -70,9 +70,11 @@ single-use actor and chain state use the database. The suite checks competing
 replay across nodes, independent fresh fan-out at 1/10/100 requests, inherited
 depth/rights, acknowledged policy withdrawal, process kill/restart/rejoin and a
 cache-only partition. It records accepted counts, p50/p95, withdrawal and recovery
-timings. Requests use at most 16 worker threads. These bounded synthetic samples
+timings. Requests use up to 100 worker threads, matching each selected concurrent sample count. These bounded synthetic samples
 are not sustained overload or a throughput SLA. Per-node limits are two CPUs and
-1 GiB; limits are recorded, not measured memory consumption or a hardware benchmark.
+1 GiB. Reports record the Docker CPU/architecture allocation and a bounded
+point-in-time CPU/memory sample after tests; this is not peak-memory profiling
+or a physical-hardware benchmark.
 
 `qualification/cluster.json` binds outcomes, measurements, image digests and JAR
 hash to the exact SDK and source. `cluster-failsafe-reports/` retains raw JUnit

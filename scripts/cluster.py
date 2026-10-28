@@ -78,6 +78,27 @@ class Lab:
             raise ValueError("Isolated cluster Docker operation failed: " + args[0])
         return (result.stdout + (result.stderr if args[0] == "logs" else "")).strip()
 
+    def runtime_snapshot(self):
+        """Bounded hardware allocation and point-in-time memory, never host names."""
+        runtime = json.loads(self.docker("info", "--format", '{"cpus":{{.NCPU}},"architecture":{{json .Architecture}},"server_version":{{json .ServerVersion}}}'))
+        if (type(runtime.get("cpus")) is not int or not 1 <= runtime["cpus"] <= 65536
+                or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", runtime.get("architecture", ""))
+                or not isinstance(runtime.get("server_version"), str) or len(runtime["server_version"]) > 64):
+            raise ValueError("Unexpected Docker runtime metadata")
+        nodes = []
+        for node in self.nodes:
+            data = json.loads(self.docker("stats", "--no-stream", "--format", "{{json .}}", node))
+            match = re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)\s*(B|KiB|MiB|GiB|TiB|kB|MB|GB)", data["MemUsage"].split("/")[0].strip())
+            if match is None:
+                raise ValueError("Unexpected container memory sample")
+            factors = {"B": 1, "KiB": 1024, "MiB": 1024**2, "GiB": 1024**3, "TiB": 1024**4, "kB": 1000, "MB": 1000**2, "GB": 1000**3}
+            cpu = float(data["CPUPerc"].removesuffix("%"))
+            memory = int(float(match[1]) * factors[match[2]])
+            if not 0 <= cpu <= 6553600 or not 0 < memory <= 1073741824:
+                raise ValueError("Container runtime sample outside its bounds")
+            nodes.append({"memory_usage_bytes": memory, "cpu_percent": cpu})
+        return {"runtime": runtime, "nodes": nodes, "sampling": "Docker point-in-time after tests; not peak memory", "time": datetime.now(timezone.utc).isoformat()}
+
     def container(self, suffix, *args):
         identifier = self.docker("create", "--name", self.name + "-" + suffix, "--label", "bounded.lab=" + self.name, *args)
         if not re.fullmatch(r"[0-9a-f]{64}", identifier):
@@ -172,6 +193,7 @@ class Lab:
             else:
                 raise ValueError("Isolated HTTPS Keycloak node did not become ready")
         self.await_cluster(nodes)
+        self.nodes = nodes
         configuration = {"schema": 1, "issuer": self.issuer, "endpoints": ["https://localhost:" + str(port) for port in self.ports],
             "adminUser": "cluster-admin", "adminPassword": self.password, "network": cache_name, "cacheAddresses": cache_addresses, "nodes": nodes,
             "label": self.name, "ca": str(self.directory / "tls.crt"), "keycloak": self.version, "stateStore": self.state_store}
@@ -254,6 +276,7 @@ def main():
                 "keycloak": args.keycloak_version, "jar_sha256": initial_jar, "cluster_tests": cases,
                 "images": {"keycloak": pins["keycloak"][args.keycloak_version], "postgres": pins["postgres"]},
                 "runtime_limits": {"keycloak_nodes": 2, "cpus_per_node": 2, "memory_bytes_per_node": 1073741824},
+                "runtime_snapshot": lab.runtime_snapshot(),
                 "state_store": args.state_store,
                 "topology": "two Keycloak JVMs; shared PostgreSQL; independent HTTPS/database and JGroups networks",
                 "completed_at": datetime.now(timezone.utc).isoformat(), "measurements": measurements}, indent=2) + "\n")
