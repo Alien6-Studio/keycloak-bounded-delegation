@@ -36,6 +36,18 @@ def free_port():
         return server.getsockname()[1]
 
 
+def write_private(path, content):
+    """Create a lab-only plaintext input privately, including under a permissive umask.
+
+    These generated credentials must be read by the owned Docker/Java processes.
+    They are never public evidence, image inputs or reusable deployment secrets.
+    Exclusive creation refuses existing files and symlinks before any write.
+    """
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+        stream.write(content)
+
+
 def cache_configuration(source):
     if len(source) > 1024 * 1024 or b"<!DOCTYPE" in source.upper() or b"<!ENTITY" in source.upper():
         raise ValueError("Unexpected native cache configuration")
@@ -60,6 +72,11 @@ def cache_configuration(source):
 class Lab:
     def __init__(self, directory, version, jar, pins, state_store="database"):
         self.directory, self.version, self.jar, self.pins = directory, version, jar, pins
+        self.directory.chmod(0o700)
+        # The container UID needs TLS access; it never receives the private
+        # parent containing environment files or the Java driver's credentials.
+        self.runtime_directory = self.directory / "runtime"
+        self.runtime_directory.mkdir(mode=0o755)
         self.name = "bounded-lab-" + secrets.token_hex(8)
         self.containers = []
         self.network = None
@@ -108,13 +125,12 @@ class Lab:
         return identifier
 
     def certificates(self):
-        self.directory.chmod(0o755)
-        key, certificate = self.directory / "tls.key", self.directory / "tls.crt"
+        key, certificate = self.runtime_directory / "tls.key", self.runtime_directory / "tls.crt"
         subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
             "-keyout", str(key), "-out", str(certificate), "-subj", "/CN=localhost",
             "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"], capture_output=True, check=True, timeout=30)
-        # Containers use their own uid; this isolated temporary directory has no
-        # live infrastructure or keys, and is deleted after the lab exits.
+        # Only the owned containers can traverse this mount. Other host users
+        # cannot traverse its 0700 parent. Everything is removed on lab exit.
         key.chmod(0o644)
         return ssl.create_default_context(cafile=str(certificate))
 
@@ -133,8 +149,7 @@ class Lab:
                                          "--subnet", str(subnet), cache_name)
         cache_addresses = [str(subnet.network_address + index) for index in (10, 11)]
         database_env = self.directory / "postgres.env"
-        database_env.write_text("POSTGRES_DB=keycloak\nPOSTGRES_USER=keycloak\nPOSTGRES_PASSWORD=" + self.password + "\n")
-        database_env.chmod(0o600)
+        write_private(database_env, "POSTGRES_DB=keycloak\nPOSTGRES_USER=keycloak\nPOSTGRES_PASSWORD=" + self.password + "\n")
         database = self.container("db", "--network", self.name, "--network-alias", "database", "--env-file", database_env, self.pins["postgres"])
         self.docker("start", database)
         deadline = time.monotonic() + 120
@@ -171,21 +186,22 @@ class Lab:
         nodes = self.start_nodes(self.image, context)
         configuration = {"schema": 1, "issuer": self.issuer, "endpoints": ["https://localhost:" + str(port) for port in self.ports],
             "adminUser": "cluster-admin", "adminPassword": self.password, "network": cache_name, "cacheAddresses": cache_addresses, "nodes": nodes,
-            "label": self.name, "ca": str(self.directory / "tls.crt"), "keycloak": self.version, "stateStore": self.state_store}
+            "label": self.name, "ca": str(self.runtime_directory / "tls.crt"), "keycloak": self.version, "stateStore": self.state_store}
         path = self.directory / "private-cluster.json"
-        path.write_text(json.dumps(configuration)); path.chmod(0o600)
+        write_private(path, json.dumps(configuration))
         return path
 
     def start_nodes(self, image, context):
         nodes = []
         for index, port in enumerate(self.ports):
-            node_env = self.directory / ("node" + str(index) + ".env")
-            node_env.write_text("KC_DB_PASSWORD=" + self.password + "\nKC_BOOTSTRAP_ADMIN_PASSWORD=" + self.password + "\n"
-                               "JAVA_OPTS_APPEND=-Djgroups.bind.address=" + self.cache_addresses[index] + "\n")
-            node_env.chmod(0o600)
+            # Lifecycle replacement creates a fresh immutable input rather than
+            # reopening or replacing a file used by an earlier process.
+            node_env = self.directory / ("node" + str(index) + "-" + secrets.token_hex(8) + ".env")
+            write_private(node_env, "KC_DB_PASSWORD=" + self.password + "\nKC_BOOTSTRAP_ADMIN_PASSWORD=" + self.password + "\n"
+                          "JAVA_OPTS_APPEND=-Djgroups.bind.address=" + self.cache_addresses[index] + "\n")
             node = self.container("node" + str(index), "--network", self.name, "--hostname", self.name + "-node" + str(index),
                 "--memory", "1g", "--cpus", "2",
-                "--env-file", node_env, "--publish", f"127.0.0.1:{port}:8443", "--volume", str(self.directory) + ":/fixture:ro",
+                "--env-file", node_env, "--publish", f"127.0.0.1:{port}:8443", "--volume", str(self.runtime_directory) + ":/fixture:ro",
                 image, "start", "--optimized",
                 "--db-url=jdbc:postgresql://database/keycloak", "--db-username=keycloak",
                 "--bootstrap-admin-username=cluster-admin", "--hostname=" + self.issuer, "--http-enabled=false",

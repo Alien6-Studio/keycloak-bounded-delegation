@@ -356,7 +356,7 @@ def main():
         images = []
         try:
             lab.start()
-            context = ssl.create_default_context(cafile=str(lab.directory / "tls.crt"))
+            context = ssl.create_default_context(cafile=str(lab.runtime_directory / "tls.crt"))
             context.minimum_version = ssl.TLSVersion.TLSv1_3
             for jar, suffix in ((candidate, "upgraded"), (None, "absent")):
                 images.append(build_image(lab, jar, suffix))
