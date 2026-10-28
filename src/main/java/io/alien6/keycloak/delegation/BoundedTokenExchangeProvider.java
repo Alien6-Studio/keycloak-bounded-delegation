@@ -143,7 +143,11 @@ public final class BoundedTokenExchangeProvider extends StandardTokenExchangePro
     }
 
     private void softwareIdentity(ClientModel expected, UserModel user, AccessToken token) {
-        if (!expected.isEnabled() || expected.isPublicClient() || !expected.isServiceAccountsEnabled() || !expected.getId().equals(user.getServiceAccountClientLink())
+        // Keycloak can resolve a stateless token by preferred_username after
+        // its original subject has disappeared. A reused software name must
+        // never substitute a new native identity for the signed subject.
+        if (user == null || !user.getId().equals(token.getSubject())
+                || !expected.isEnabled() || expected.isPublicClient() || !expected.isServiceAccountsEnabled() || !expected.getId().equals(user.getServiceAccountClientLink())
                 || !user.equals(session.users().getServiceAccount(expected)) || !user.isEnabled()
                 || (!expected.getClientId().equals(token.getIssuedFor()) && token.getOtherClaims().get("act") == null)) {
             throw new Bounds.Rejected("software_identity_required");

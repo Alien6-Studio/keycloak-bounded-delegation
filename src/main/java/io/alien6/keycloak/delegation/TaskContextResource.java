@@ -57,7 +57,8 @@ public final class TaskContextResource {
                 || !Arrays.asList(auth.getToken().getAudience()).contains(TaskContext.ENDPOINT_AUDIENCE)
                 || auth.getToken().getOtherClaims().containsKey("act")) throw new Bounds.Rejected("task_authentication_required");
         var client = session.clients().getClientByClientId(realm(), auth.getToken().getIssuedFor());
-        if (client == null || !client.isEnabled() || client.isPublicClient() || !client.isServiceAccountsEnabled()
+        if (auth.getUser() == null || !auth.getUser().getId().equals(auth.getToken().getSubject())
+                || client == null || !client.isEnabled() || client.isPublicClient() || !client.isServiceAccountsEnabled()
                 || !auth.getUser().isEnabled() || !client.getId().equals(auth.getUser().getServiceAccountClientLink())
                 || !auth.getUser().equals(session.users().getServiceAccount(client))) throw new Bounds.Rejected("task_authentication_required");
         return client.getId();

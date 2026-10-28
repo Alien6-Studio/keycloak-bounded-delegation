@@ -33,6 +33,8 @@
       "nonCommittedAdministrativeGrantsIssueNoToken",
       "publicSubjectCannotReusePreviouslyIssuedConfidentialInputs",
       "realmActivationRequiresExplicitSafeWithdrawal",
+      "recreatedSoftwareNamesCannotReusePreviousSignedIdentities",
+      "recreatedTaskIssuerCannotReusePreviousBearer",
       "replacedAdministrativeIdentityBindingRefusesIssuance",
       "replacedNativeClientCannotInheritConsoleDelegation",
       "shortInputBoundsOutputAndUnusedExpiredInputCannotIssue",

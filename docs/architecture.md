@@ -32,6 +32,11 @@ compiled and qualified for every supported SDK.
    token with one audience, bounded expiry, attenuated permissions and `act`.
    Private expiring evidence records inherited limits, without raw tokens.
 
+For both software inputs, the signed `sub` must equal the current native
+service-account user UUID. Username fallback and pairwise subject aliases do not
+satisfy this profile. Recreating a client under the same name requires fresh
+input tokens; an unexpired token from the previous identity cannot be rebound.
+
 A failure after actor consumption can consume the input without returning an
 output token. Callers must obtain a new actor token; issuance is not an
 exactly-once delivery protocol. The [cluster suite](testing.md#two-node-failure-qualification)

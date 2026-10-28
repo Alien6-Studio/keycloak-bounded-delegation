@@ -187,6 +187,61 @@ public class BoundedDelegationIT {
         denied(exchange("actor", rpt("subject", "write"), rpt("actor", "read"), Map.of()));
     }
 
+    @Test void recreatedSoftwareNamesCannotReusePreviousSignedIdentities() throws Exception {
+        for (String name : List.of("actor", "subject")) {
+            String previousActor = rpt("actor", "read"), previousSubject = rpt("subject", "read");
+            recreateSoftwareClient(name);
+            Result updated = admin("PUT", base + "/policy/client/" + policy, Map.of("id", policy, "name", "software-identities", "type", "client",
+                    "logic", "POSITIVE", "decisionStrategy", "AFFIRMATIVE", "clients", identityIDs()));
+            assertTrue(updated.status() >= 200 && updated.status() < 300);
+            GrantDocument.Grant rebound = new GrantDocument.Grant("actor-subject", binding("actor"), binding("subject"),
+                    document.grants().getFirst().authority(), List.of(condition("actor"), condition("subject")), 2, 30);
+            document = new GrantDocument(1, "Committed", document.ownerUID(), "revision-recreated-" + name,
+                    document.realmID(), document.audience(), List.of(rebound), List.of());
+            save(document);
+            assertTrue(verified(name.equals("actor") ? previousActor : previousSubject).getExp() > org.keycloak.common.util.Time.currentTime(),
+                    "The old signed identity must still be unexpired");
+            Result previous = exchange("actor", name.equals("subject") ? previousSubject : rpt("subject", "read"),
+                    name.equals("actor") ? previousActor : rpt("actor", "read"), Map.of());
+            assertTrue(previous.status() >= 400 && previous.status() < 500,
+                    "Recreated " + name + " must refuse the old signed identity; HTTP " + previous.status());
+            assertFalse(previous.body().hasNonNull("access_token"));
+            issued(exchange("actor", rpt("subject", "read"), rpt("actor", "read"), Map.of()));
+        }
+    }
+
+    @Test void recreatedTaskIssuerCannotReusePreviousBearer() throws Exception {
+        enableTasks();
+        String previous = taskBearer("task-authority");
+        recreateSoftwareClient("task-authority");
+        var realmState = admin.realm(realm).toRepresentation();
+        var attributes = new HashMap<>(realmState.getAttributes());
+        attributes.put(TaskContext.ISSUER_ATTRIBUTE, JSON.writeValueAsString(binding("task-authority")));
+        realmState.setAttributes(attributes); admin.realm(realm).update(realmState);
+        String actor = rpt("actor", "read"), subject = rpt("subject", "read");
+        assertTrue(verified(previous).getExp() > org.keycloak.common.util.Time.currentTime());
+        Result refused = request("POST", taskURL() + "/contexts", null, previous, taskRegistration(actor, subject, 30));
+        assertEquals(403, refused.status(), "A new issuer binding must not revive its previous identity's bearer");
+        assertFalse(refused.body().hasNonNull("approval"));
+        assertEquals(201, request("POST", taskURL() + "/contexts", null, taskBearer("task-authority"), taskRegistration(actor, subject, 30)).status());
+    }
+
+    private void recreateSoftwareClient(String name) {
+        String previousID = clients.get(name);
+        String previousUser = admin.realm(realm).clients().get(previousID).getServiceAccountUser().getId();
+        ClientRepresentation replacement = admin.realm(realm).clients().get(previousID).toRepresentation();
+        admin.realm(realm).clients().get(previousID).remove();
+        replacement.setId(null);
+        replacement.setSecret(secret);
+        try (var response = admin.realm(realm).clients().create(replacement)) {
+            assertEquals(201, response.getStatus());
+        }
+        clients.put(name, admin.realm(realm).clients().findByClientId(name).getFirst().getId());
+        assertFalse(previousID.equals(clients.get(name)), "Recreation must create a new native client");
+        assertFalse(previousUser.equals(admin.realm(realm).clients().get(clients.get(name)).getServiceAccountUser().getId()),
+                "Recreation must create a new native service-account user");
+    }
+
     @Test void nonCommittedAdministrativeGrantsIssueNoToken() throws Exception {
         for (String phase : List.of("Prepared", "Applied", "Verified")) {
             save(new GrantDocument(1, phase, document.ownerUID(), document.revision(), document.realmID(), document.audience(), document.grants(), List.of()));
