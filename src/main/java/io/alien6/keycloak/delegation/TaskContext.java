@@ -153,7 +153,7 @@ final class TaskContext {
                 || !new Authority(Set.of(), Set.of(), Map.of(), request.permissions()).contains(requested)) {
             throw new Bounds.Rejected("task_binding_invalid");
         }
-        if (!session.singleUseObjects().putIfAbsent(key(realm, "approval-used", approval), stored.expiresAt() - now)) {
+        if (!NativeState.claim(session, key(realm, "approval-used", approval), stored.expiresAt() - now)) {
             throw new Bounds.Rejected("task_approval_replayed");
         }
         current(session, realm, stored.reference(), now);
@@ -168,7 +168,7 @@ final class TaskContext {
     static void cancel(KeycloakSession session, RealmModel realm, String requester, String reference, long now) {
         Stored stored = current(session, realm, reference, now);
         if (!stored.issuer().id().equals(requester)) throw new Bounds.Rejected("task_issuer_required");
-        session.singleUseObjects().putIfAbsent(key(realm, "cancelled", reference), stored.expiresAt() - now);
+        NativeState.claim(session, key(realm, "cancelled", reference), stored.expiresAt() - now);
     }
     static boolean check(KeycloakSession session, RealmModel realm, String requester, Check request, long now) {
         Stored stored = current(session, realm, request.reference(), now);
@@ -204,13 +204,14 @@ final class TaskContext {
     }
     private static void put(KeycloakSession session, RealmModel realm, String purpose, String id, long ttl, Map<String, String> values) {
         String key = key(realm, purpose, id);
-        if (ttl <= 0 || !session.singleUseObjects().putIfAbsent(key, ttl) || !session.singleUseObjects().replace(key, values)) {
+        if (ttl <= 0 || !NativeState.claim(session, key, ttl) || !session.singleUseObjects().replace(key, values)) {
             throw new Bounds.Rejected("task_state_unavailable");
         }
     }
     private static String key(RealmModel realm, String purpose, String id) {
         name(id);
-        return "bounded-task/" + realm.getId() + "/" + purpose + "/" + id;
+        // A backend diagnostic must not expose the actual approval/context reference.
+        return "bounded-task/" + purpose + "/" + ChainState.hash(realm.getId() + "/" + id);
     }
     private static void name(String value) {
         if (value == null || value.isBlank() || value.length() > 512 || value.chars().anyMatch(Character::isISOControl)) throw new Bounds.Rejected("task_input_invalid");

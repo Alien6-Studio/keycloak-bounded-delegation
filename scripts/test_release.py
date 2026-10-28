@@ -67,20 +67,24 @@ class ReleaseTests(unittest.TestCase):
     def test_provider_rejects_missing_metadata_wrong_version_or_shaded_classes(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "provider.jar"
-            entries = {"META-INF/LICENSE": "license", "META-INF/NOTICE": "notice", "bounded-delegation.properties": "version=0.1.0-rc.1\n",
+            entries = {"META-INF/LICENSE": "license", "META-INF/NOTICE": "notice", "bounded-delegation.properties": "version=0.1.0-rc.1\nkeycloakVersion=26.8.0\n",
                        "META-INF/services/org.keycloak.protocol.oidc.TokenExchangeProviderFactory": "provider",
                        "META-INF/services/org.keycloak.services.resource.RealmResourceProviderFactory": "discovery",
                        "META-INF/services/org.keycloak.services.resources.admin.ext.AdminRealmResourceProviderFactory": "admin",
                        "META-INF/services/org.keycloak.services.ui.extend.UiPageProviderFactory": "page",
                        "META-INF/services/org.keycloak.services.ui.extend.UiTabProviderFactory": "tab",
                        "io/alien6/keycloak/delegation/Provider.class": b"\xca\xfe\xba\xbe\x00\x00\x00A"}
-            for change in ({}, {"bounded-delegation.properties": "version=foreign"}, {"org/keycloak/Shaded.class": b"\xca\xfe\xba\xbe\x00\x00\x00A"},
+            for change in ({}, {"bounded-delegation.properties": "version=foreign"},
+                           {"bounded-delegation.properties": "version=0.1.0-rc.1\nkeycloakVersion=26.8.0\nkeycloakVersion=26.8.1\n"},
+                           {"org/keycloak/Shaded.class": b"\xca\xfe\xba\xbe\x00\x00\x00A"},
                            {"io/alien6/keycloak/delegation/Provider.class": b"\xca\xfe\xba\xbe\x00\x00\x00B"}):
                 with ZipFile(path, "w") as jar:
                     for name, value in {**entries, **change}.items():
                         jar.writestr(name, value)
                 if not change:
                     release.validate_jar(path, "0.1.0-rc.1")
+                    with self.assertRaisesRegex(ValueError, "SDK mismatch"):
+                        release.validate_jar(path, "0.1.0-rc.1", sdk="26.8.1")
                     compiled = Path(temporary) / "classes"
                     for name, value in entries.items():
                         target = compiled / name

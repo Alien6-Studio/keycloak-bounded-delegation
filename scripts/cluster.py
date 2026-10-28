@@ -75,7 +75,8 @@ class Lab:
         if result.returncode:
             # Docker errors can echo environment/arguments. Keep private output
             # available to the local process only, never the qualification log.
-            raise ValueError("Isolated cluster Docker operation failed: " + args[0])
+            operation = args[0] + ("/" + args[1] if args[0] == "network" and len(args) > 1 else "")
+            raise ValueError("Isolated cluster Docker operation failed: " + operation)
         return (result.stdout + (result.stderr if args[0] == "logs" else "")).strip()
 
     def runtime_snapshot(self):
@@ -124,6 +125,12 @@ class Lab:
         self.cache_network = self.docker("network", "create", "--label", "bounded.lab=" + self.name, cache_name)
         cache_metadata = json.loads(self.docker("network", "inspect", self.cache_network))[0]
         subnet = ipaddress.ip_network(cache_metadata["IPAM"]["Config"][0]["Subnet"])
+        # Let Docker allocate a free range, then declare that same owned range
+        # explicitly. Linux engines require a user-configured subnet for --ip.
+        self.docker("network", "rm", self.cache_network)
+        self.cache_network = None
+        self.cache_network = self.docker("network", "create", "--internal", "--label", "bounded.lab=" + self.name,
+                                         "--subnet", str(subnet), cache_name)
         cache_addresses = [str(subnet.network_address + index) for index in (10, 11)]
         database_env = self.directory / "postgres.env"
         database_env.write_text("POSTGRES_DB=keycloak\nPOSTGRES_USER=keycloak\nPOSTGRES_PASSWORD=" + self.password + "\n")

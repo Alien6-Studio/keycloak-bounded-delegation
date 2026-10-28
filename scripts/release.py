@@ -69,7 +69,7 @@ def verify_tag(repository, tag, api=None):
     return {"tag": tag, "version": version, "revision": revision}
 
 
-def validate_jar(path, version, compiled=None):
+def validate_jar(path, version, compiled=None, sdk=None):
     with ZipFile(path) as jar:
         names = set(jar.namelist())
         require(len(names) == len(jar.namelist()), "Ambiguous duplicate JAR entries")
@@ -79,7 +79,13 @@ def validate_jar(path, version, compiled=None):
                  "META-INF/services/org.keycloak.services.resources.admin.ext.AdminRealmResourceProviderFactory",
                  "META-INF/services/org.keycloak.services.ui.extend.UiPageProviderFactory",
                  "META-INF/services/org.keycloak.services.ui.extend.UiTabProviderFactory"} <= names, "Provider metadata or license missing")
-        require(jar.read("bounded-delegation.properties").decode().strip() == "version=" + version, "Packaged extension version mismatch")
+        lines = jar.read("bounded-delegation.properties").decode().strip().splitlines()
+        pairs = [line.split("=", 1) for line in lines]
+        require(len(pairs) == 2 and all(len(pair) == 2 for pair in pairs), "Packaged extension metadata mismatch")
+        metadata = dict(pairs)
+        require(set(metadata) == {"version", "keycloakVersion"} and metadata["version"] == version
+                and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", metadata["keycloakVersion"])
+                and (sdk is None or metadata["keycloakVersion"] == sdk), "Packaged extension version or SDK mismatch")
         classes = [name for name in names if name.endswith(".class")]
         require(classes and all(name.startswith("io/alien6/keycloak/delegation/") for name in classes), "Unexpected shaded runtime/test dependency")
         for name in classes:
@@ -125,7 +131,7 @@ def package(sdk, output, dry_run=False):
     cluster = document(target / "qualification/cluster.json")
     images = document(ROOT / contract["cluster"]["images"])
     validate_cluster(cluster, sdk, revision, digest(binary), contract["cluster"], images, dry_run)
-    validate_jar(binary, version, target / "classes")
+    validate_jar(binary, version, target / "classes", sdk)
     sbom = document(target / "sbom.json")
     require(sbom.get("bomFormat") == "CycloneDX" and sbom.get("metadata", {}).get("component", {}).get("version") == version,
             "Missing or foreign SBOM")

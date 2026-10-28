@@ -63,6 +63,7 @@ class ClusteredDelegationIT {
     private HttpClient http;
     private JsonNode configuration;
     private String realm, issuer, admin, resource, secret, audienceID;
+    private long adminObtained;
     private GrantDocument document;
 
     @BeforeAll void nativeClusterGraph() throws Exception {
@@ -82,6 +83,7 @@ class ClusteredDelegationIT {
         http = HttpClient.newBuilder().sslContext(tls).connectTimeout(Duration.ofSeconds(5)).build();
         admin = raw(request(0, "POST", "/realms/master/protocol/openid-connect/token", Map.of("grant_type", "password", "client_id", "admin-cli",
                 "username", configuration.path("adminUser").asText(), "password", configuration.path("adminPassword").asText()), null, null));
+        adminObtained = System.nanoTime();
         realm = "cluster-" + UUID.randomUUID(); secret = UUID.randomUUID().toString();
         issuer = configuration.path("issuer").asText() + "/realms/" + realm;
         admin("POST", "/admin/realms", Map.of("realm", realm, "enabled", true, "accessTokenLifespan", 300,
@@ -315,6 +317,11 @@ class ClusteredDelegationIT {
         return request(0, "PUT", "/admin/realms/" + realm + "/clients/" + audienceID, null, admin, target);
     }
     private Result admin(String method, String path, Object body) throws Exception {
+        if (System.nanoTime() - adminObtained > Duration.ofSeconds(30).toNanos()) {
+            admin = raw(request(0, "POST", "/realms/master/protocol/openid-connect/token", Map.of("grant_type", "password", "client_id", "admin-cli",
+                    "username", configuration.path("adminUser").asText(), "password", configuration.path("adminPassword").asText()), null, null));
+            adminObtained = System.nanoTime();
+        }
         Result value = request(0, method, path, null, admin, body);
         assertTrue(value.status() >= 200 && value.status() < 300, "Disposable native administration failed"); return value;
     }
