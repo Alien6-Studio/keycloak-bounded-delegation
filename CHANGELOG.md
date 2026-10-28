@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased — 0.1.0-SNAPSHOT
+## 0.1.0-rc.1
 
+- Require the exact signed service-account subject UUID at protected exchange and task endpoints; deleting and recreating a client name cannot revive the previous identity's bearer.
+- Update Maven to 3.10.0, Spotless to 3.10.4, build-helper to 3.6.2, CycloneDX to 2.9.3 and the SHA-pinned Python setup action to 7.1.0.
 - Harden selected-profile routing and reject unsupported bounded-exchange form fields without standard-exchange fallback; preserve unselected native realms.
 - Add HTTPS native regressions for separate protected audiences, mapper/duplicate-field refusal, fresh fan-out, replay and disabled inputs.
 - Add digest-pinned two-node PostgreSQL/native database-state replay, chain, partition and recovery qualification for every supported SDK, with mandatory release evidence and measured limits.

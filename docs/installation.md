@@ -16,6 +16,24 @@ Copy `target/26.8.1/bounded-delegation-keycloak-26.8.1.jar` into the server's
 Follow Keycloak's [provider deployment guide](https://www.keycloak.org/docs/latest/server_development/index.html).
 Do not copy the sources or Javadoc JAR into `providers/`.
 
+## Release downloads
+
+The experimental release candidate is **0.1.0-rc.1**. Choose the binary whose
+`keycloak-SDK` suffix exactly matches the server. For Keycloak 26.8.1:
+
+```sh
+gh release download v0.1.0-rc.1 --repo Alien6-Studio/keycloak-bounded-delegation \
+  --pattern bounded-delegation-0.1.0-rc.1-keycloak-26.8.1.jar --pattern SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
+gh attestation verify bounded-delegation-0.1.0-rc.1-keycloak-26.8.1.jar \
+  --repo Alien6-Studio/keycloak-bounded-delegation
+```
+
+Install the verified provider JAR in `providers/` and rebuild the server as above.
+The release also distributes sources, Javadoc, a per-SDK SBOM and native,
+two-node and lifecycle qualification reports. Review the [release scope and
+verification policy](releases.md); this candidate remains experimental.
+
 ## Native prerequisites
 
 - Keep standard token exchange V2 enabled.

@@ -2,9 +2,8 @@
 
 ## Version and scope
 
-The project is currently `0.1.0-SNAPSHOT`. The intended first public candidate is
-**0.1.0-rc.1**, after native qualification and maintainer review. No release or tag
-has been issued as part of repository preparation. The current release validator
+The project prepares **0.1.0-rc.1** as its first public experimental candidate,
+after native qualification and maintainer review. The current release validator
 accepts experimental prereleases only; stable publication requires a separately
 reviewed readiness/support-policy change and closing the runtime gaps in the
 [roadmap](roadmap.md).
