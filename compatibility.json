@@ -47,7 +47,7 @@
   "integrations": {
     "hanko": {
       "repository": "Alien6-Studio/hankoshell-operator",
-      "revision": "6b3deee130b89b968d2e16617c4e8cca1ed18b8a",
+      "revision": "069c9e7ef8017f952d120308534e91fee3bb1d81",
       "root": "TestRealKeycloakBoundedDelegationExtension",
       "tests": [
         "TestRealKeycloakBoundedDelegationExtension",

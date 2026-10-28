@@ -2,11 +2,15 @@
 
 ## Version and scope
 
-The project prepares **0.1.0-rc.1** as its first public experimental candidate,
+The project prepares **0.1.0-rc.2** as its first public experimental candidate,
 after native qualification and maintainer review. The current release validator
 accepts experimental prereleases only; stable publication requires a separately
 reviewed readiness/support-policy change and closing the runtime gaps in the
 [roadmap](roadmap.md).
+
+The rc.1 tag is retained as an unpublished candidate: its first workflow stopped
+at the metadata eligibility request before creating assets. The corrected
+transport is released under rc.2; signed tags are never moved or reused.
 
 One project version covers the extension contract. Every qualified Keycloak SDK
 gets its own binary; private-SPI compatibility is never inferred from a shared
@@ -53,11 +57,11 @@ does not exercise production GitHub OIDC signing or remote publication.
 
 1. Review the roadmap, compatibility window, dependency/security findings and
    release notes. Close only qualification work supported by actual evidence.
-2. Prepare a PR changing the POM to `0.1.0-rc.1`, reviewing CHANGELOG.md and updating
+2. Prepare a PR changing the POM to `0.1.0-rc.2`, reviewing CHANGELOG.md and updating
    README release status/badges and the supported-version security policy. Keep
    the complete SDK matrix and required `Extension checks` / CodeQL gates green.
 3. Merge through protected main. Create a **signed annotated** tag such as
-   `v0.1.0-rc.1` for that exact GitHub-Verified source commit and push the tag.
+   `v0.1.0-rc.2` for that exact GitHub-Verified source commit and push the tag.
    Both source and tag must be GitHub Verified; lightweight, foreign and moved
    tag identities are rejected. The workflow never creates or rewrites tags.
    Start the workflow while main still identifies that exact tagged commit.
@@ -67,7 +71,7 @@ does not exercise production GitHub OIDC signing or remote publication.
 4. Run the `Draft prerelease` workflow **from main**, supplying that existing tag:
 
    ```sh
-   gh workflow run release.yml --ref main -f tag=v0.1.0-rc.1
+   gh workflow run release.yml --ref main -f tag=v0.1.0-rc.2
    ```
 
 5. Eligibility verifies tag/source signatures, protected-main ancestry and POM

@@ -7,7 +7,7 @@ repository scaffolding does not mark the security/runtime gates below complete.
 | --- | --- | --- |
 | Independent extension | Native functional tests, version-specific builds, public protocol and contribution documentation | Qualified by the required native SDK matrix |
 | Console and API administration | Native forms, shared server validation, RBAC/audit, withdrawal and Chrome/OAuth end-to-end tests | Implemented; complete SDK qualification required |
-| First experimental prerelease | Protected-main source, verified signed tag, complete SDK matrix, versioned assets/SBOM/checksums/attestations, reviewed scope and known limitations | Candidate 0.1.0-rc.1; publication requires the exact tag's complete release workflow |
+| First experimental prerelease | Protected-main source, verified signed tag, complete SDK matrix, versioned assets/SBOM/checksums/attestations, reviewed scope and known limitations | Candidate 0.1.0-rc.2; publication requires the exact tag's complete release workflow |
 | Cluster qualification | Two real Keycloak nodes with shared PostgreSQL and native database-backed single-use state; replay, chain, partition and restart evidence | Required three-SDK clean CI and final-tag qualification; cache-only recovery unsupported |
 | Operational qualification | Provider upgrade/removal, alternate exchange routes, provider failures, leak checks and performance budgets | Required coordinated baseline/candidate rollback and guarded removal/reinstall qualification; mixed-version rolling upgrades unqualified |
 | Upstream design agreement | Maintainer discussion, overlap review with native policies, agreed first scope and configuration | Not submitted |

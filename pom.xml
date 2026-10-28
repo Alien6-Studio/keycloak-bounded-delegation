@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.alien6.keycloak</groupId>
   <artifactId>bounded-delegation</artifactId>
-  <version>0.1.0-rc.1</version>
+  <version>0.1.0-rc.2</version>
   <name>Keycloak Bounded Delegation</name>
   <description>Experimental bounded token exchange and a reference implementation for contribution to Keycloak.</description>
   <url>https://github.com/Alien6-Studio/keycloak-bounded-delegation</url>

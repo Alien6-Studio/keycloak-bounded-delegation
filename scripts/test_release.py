@@ -16,6 +16,18 @@ spec.loader.exec_module(qualification)
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_repository_metadata_uses_the_canonical_endpoint(self):
+        with patch.object(release.subprocess, "run") as command:
+            command.return_value.stdout = b'{"full_name":"example/extension"}'
+            self.assertEqual(release.github("example/extension", "")["full_name"], "example/extension")
+            self.assertEqual(command.call_args.args[0], ["gh", "api", "--method", "GET", "repos/example/extension"])
+
+    def test_nested_metadata_endpoint_keeps_its_path(self):
+        with patch.object(release.subprocess, "run") as command:
+            command.return_value.stdout = b'{"protected":true}'
+            self.assertTrue(release.github("example/extension", "branches/main")["protected"])
+            self.assertEqual(command.call_args.args[0][-1], "repos/example/extension/branches/main")
+
     def test_lifecycle_proof_requires_exact_binary_baseline_checks_and_clean_source(self):
         contract = {"checks": ["upgrade", "rollback", "removal"]}
         baseline = {"schema": 1, "repository": "example/provider", "revision": "b" * 40}

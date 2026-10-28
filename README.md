@@ -5,7 +5,7 @@
 [![Java 21](https://img.shields.io/badge/Java-21-007396)](CONTRIBUTING.md)
 [![Keycloak compatibility](https://img.shields.io/badge/Keycloak-26.7.5%20%7C%2026.8.0%20%7C%2026.8.1-4d4d4d)](compatibility.json)
 [![Experimental](https://img.shields.io/badge/status-experimental-orange)](docs/roadmap.md)
-[![Release candidate](https://img.shields.io/badge/release-0.1.0--rc.1-orange)](https://github.com/Alien6-Studio/keycloak-bounded-delegation/releases/tag/v0.1.0-rc.1)
+[![Release candidate](https://img.shields.io/badge/release-0.1.0--rc.1-orange)](https://github.com/Alien6-Studio/keycloak-bounded-delegation/releases/tag/v0.1.0-rc.2)
 
 Give a service limited permission to act on behalf of another service, with
 **bounded permissions, audience, lifetime and delegation depth**.
@@ -72,11 +72,11 @@ Use JDK 21 and Chrome; no Docker, Go or consumer repository is needed. Run SDK
 variants sequentially locally. See [testing](docs/testing.md) and
 [CONTRIBUTING.md](CONTRIBUTING.md) for the full matrix and checks.
 
-The first experimental candidate is **0.1.0-rc.1**. The
+The first distributed experimental candidate is **0.1.0-rc.2**. The
 [release workflow](docs/releases.md) qualifies every SDK and prepares versioned
 JARs, sources, Javadoc, SBOM, checksums and attestations in a GitHub draft.
 After publication, download the JAR matching your exact Keycloak version from the
-[candidate assets](https://github.com/Alien6-Studio/keycloak-bounded-delegation/releases/tag/v0.1.0-rc.1).
+[candidate assets](https://github.com/Alien6-Studio/keycloak-bounded-delegation/releases/tag/v0.1.0-rc.2).
 Verify its checksums and provenance before installation; Maven Central publication
 is not configured.
 
