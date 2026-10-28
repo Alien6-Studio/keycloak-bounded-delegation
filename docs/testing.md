@@ -65,6 +65,13 @@ the lab CA. The nodes share the database; a separate JGroups network allows a
 cache partition while HTTPS and database access remain available. Cleanup targets
 only randomly named, labelled lab resources. No existing deployment is used.
 
+The lab generates temporary credentials inside a mode-0700 parent. Private Java
+and Docker inputs are created exclusively with mode 0600, before their contents
+are written. Only a separate TLS directory is mounted into the owned Keycloak
+containers; credentials are excluded from the image build context and public
+evidence. These plaintext inputs serve the disposable test processes and are
+removed with the lab. Docker administrators remain a superior authority.
+
 The required topology enables Keycloak's native `stateless` build feature so
 single-use actor and chain state use the database. The suite checks competing
 replay across nodes, independent fresh fan-out at 1/10/100 requests, inherited

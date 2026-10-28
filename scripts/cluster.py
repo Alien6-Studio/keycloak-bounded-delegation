@@ -77,6 +77,7 @@ class Lab:
         # parent containing environment files or the Java driver's credentials.
         self.runtime_directory = self.directory / "runtime"
         self.runtime_directory.mkdir(mode=0o755)
+        self.runtime_directory.chmod(0o755)
         self.name = "bounded-lab-" + secrets.token_hex(8)
         self.containers = []
         self.network = None
@@ -132,6 +133,7 @@ class Lab:
         # Only the owned containers can traverse this mount. Other host users
         # cannot traverse its 0700 parent. Everything is removed on lab exit.
         key.chmod(0o644)
+        certificate.chmod(0o644)
         return ssl.create_default_context(cafile=str(certificate))
 
     def start(self):

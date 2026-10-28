@@ -3,6 +3,7 @@
 ## 0.1.0-rc.1
 
 - Require the exact signed service-account subject UUID at protected exchange and task endpoints; deleting and recreating a client name cannot revive the previous identity's bearer.
+- Create disposable lab credentials exclusively with mode 0600 inside a private parent; mount only TLS material into the owned test containers.
 - Update Maven to 3.10.0, Spotless to 3.10.4, build-helper to 3.6.2, CycloneDX to 2.9.3 and the SHA-pinned Python setup action to 7.1.0.
 - Harden selected-profile routing and reject unsupported bounded-exchange form fields without standard-exchange fallback; preserve unselected native realms.
 - Add HTTPS native regressions for separate protected audiences, mapper/duplicate-field refusal, fresh fan-out, replay and disabled inputs.
