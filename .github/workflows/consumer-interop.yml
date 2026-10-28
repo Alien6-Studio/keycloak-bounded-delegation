@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        keycloak: ["26.7.5", "26.8.0"]
+        keycloak: ["26.7.5", "26.8.1"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -24,12 +24,12 @@ jobs:
           cache: maven
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.27.2'
+          go-version: '1.27.3'
           cache: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Alien6-Studio/hankoshell-operator
-          ref: 7df9282fa27b55c0af6186564d53ccf6c1de5942
+          ref: 6b3deee130b89b968d2e16617c4e8cca1ed18b8a
           path: qualification
           persist-credentials: false
       - run: MAVEN_REPO_LOCAL="$HOME/.m2/repository" make consumer-test KEYCLOAK_VERSION=${{ matrix.keycloak }} QUALIFICATION_DIR="$GITHUB_WORKSPACE/qualification"

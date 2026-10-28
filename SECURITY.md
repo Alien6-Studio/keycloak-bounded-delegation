@@ -2,7 +2,7 @@
 
 ## Support and reporting
 
-This is an experimental private-SPI extension, currently `0.1.0-SNAPSHOT`.
+This is an experimental private-SPI extension, currently `0.1.0-rc.1`.
 Only Keycloak versions listed in [compatibility.json](compatibility.json) are
 qualified. There is no stable release or long-term support branch.
 

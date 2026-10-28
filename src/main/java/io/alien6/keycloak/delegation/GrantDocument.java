@@ -19,8 +19,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 
 /** Administrative configuration, not a token claim or an approval supplied by a caller. */
+@com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
 public record GrantDocument(int version, String phase, String ownerUID, String revision,
-                            String realmID, Binding audience, List<Grant> grants, List<Binding> retiredActors) {
+                            String realmID, Binding audience, List<Grant> grants, List<Binding> retiredActors, String profile) {
+    public GrantDocument(int version, String phase, String ownerUID, String revision, String realmID,
+                         Binding audience, List<Grant> grants, List<Binding> retiredActors) {
+        this(version, phase, ownerUID, revision, realmID, audience, grants, retiredActors, null);
+    }
     public static final String ATTRIBUTE = "oauth.bounded-delegation.v1";
     public static final String ACTOR_ATTRIBUTE = "oauth.bounded-delegation.actor.v1";
     public static final String REALM_ATTRIBUTE = "oauth.bounded-delegation.profile";
@@ -86,13 +91,15 @@ public record GrantDocument(int version, String phase, String ownerUID, String r
     }
 
     public GrantDocument {
-        if (version != 1 || phase == null || !Set.of("Prepared", "Applied", "Verified", "Committed").contains(phase)) {
+        if (!(version == 1 && profile == null || version == 2 && TaskContext.PROFILE.equals(profile))
+                || phase == null || !Set.of("Prepared", "Applied", "Verified", "Committed").contains(phase)) {
             throw new IllegalArgumentException("grant_version_or_phase");
         }
         name(ownerUID); name(revision); name(realmID);
         if (audience == null || grants == null || grants.isEmpty() || grants.size() > 128
                 || grants.stream().map(Grant::name).distinct().count() != grants.size()) throw new IllegalArgumentException("grant_inventory");
         grants = List.copyOf(grants);
+        if (version == 2 && grants.stream().anyMatch(grant -> grant.maxDepth() != 1)) throw new IllegalArgumentException("task_depth");
         if (retiredActors == null) retiredActors = List.of();
         if (retiredActors.size() > 128) throw new IllegalArgumentException("grant_inventory");
         retiredActors = List.copyOf(retiredActors);

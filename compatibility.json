@@ -18,27 +18,36 @@
       "ancestorGrantChangeStopsChainingWithoutClaimingOfflineRevocation",
       "concurrentActorReplayHasExactlyOneSuccessfulIssuance",
       "consoleCreatesEditsAndWithdrawsARealDelegation",
+      "disabledActorOrSubjectRefusesAlreadyIssuedInputs",
       "discoveryReportsOnlyVersionedPublicCapabilities",
       "disjointInputPermissionsIssueNoToken",
+      "distinctFreshActorsAllowBoundedFanOutAndSpentActorsNeverRetry",
+      "distinctProtectedAudiencesNeverShareResourceAuthority",
+      "duplicateFormFieldsAndClaimMapperInjectionCannotWidenAuthority",
       "independentAdministrativeWritesPreserveBothGrantsAndRevocationEvidence",
       "inheritedDepthRefusesTheThirdHop",
       "intersectsBothInputsAndGrantAndBoundsAudienceExpiryAndClaims",
       "invalidTokensAudienceScopesAndRefreshRequestsAreRefused",
+      "issuerControlledTaskApprovalBindsInputsAndCancelsOnlineUse",
       "liveNativePolicyWithdrawalRefusesAlreadyIssuedInputs",
       "nonCommittedAdministrativeGrantsIssueNoToken",
       "publicSubjectCannotReusePreviouslyIssuedConfidentialInputs",
       "realmActivationRequiresExplicitSafeWithdrawal",
+      "recreatedSoftwareNamesCannotReusePreviousSignedIdentities",
+      "recreatedTaskIssuerCannotReusePreviousBearer",
       "replacedAdministrativeIdentityBindingRefusesIssuance",
       "replacedNativeClientCannotInheritConsoleDelegation",
       "shortInputBoundsOutputAndUnusedExpiredInputCannotIssue",
+      "taskApprovalCannotSurvivePolicyWithdrawalExpiryOrClaimStripping",
+      "unknownProfileAndTaskParametersCannotSelectOrdinaryExchange",
       "unselectedRealmPreservesOrdinaryNativeExchange"
     ],
-    "minimum_unit_tests": 16
+    "minimum_unit_tests": 20
   },
   "integrations": {
     "hanko": {
       "repository": "Alien6-Studio/hankoshell-operator",
-      "revision": "7df9282fa27b55c0af6186564d53ccf6c1de5942",
+      "revision": "6b3deee130b89b968d2e16617c4e8cca1ed18b8a",
       "root": "TestRealKeycloakBoundedDelegationExtension",
       "tests": [
         "TestRealKeycloakBoundedDelegationExtension",
@@ -64,8 +73,49 @@
       ],
       "keycloak": [
         "26.7.5",
-        "26.8.0"
+        "26.8.1"
       ]
     }
+  },
+  "cluster": {
+    "test_class": "io.alien6.keycloak.delegation.ClusteredDelegationIT",
+    "tests": [
+      "cachePartitionWithDatabaseAndHttpsStillAvailableCannotDoubleIssue",
+      "committedPolicyWithdrawalIsObservedOnTheOtherNode",
+      "freshFanOutAttenuatesEveryGrantWithoutMergingChains",
+      "killedNodeAndRejoinCannotForgetSpentActorEvidence",
+      "sameActorAcrossNodesHasAtMostOneAcceptedIssuance",
+      "taskApprovalAndCancellationRemainNativeAcrossNodesAndPartition"
+    ],
+    "state_store": "database",
+    "feature": "stateless",
+    "required_for_release": true,
+    "images": "cluster-images.json"
+  },
+  "lifecycle": {
+    "baseline": "lifecycle-baseline.json",
+    "required_for_release": true,
+    "checks": [
+      "baseline_signed_software_exchange",
+      "upgrade_preserves_native_identities_and_journal",
+      "upgrade_preserves_spent_actor",
+      "upgrade_accepts_fresh_software_evidence",
+      "task_option_is_not_implicitly_enabled",
+      "task_opt_in_issues_signed_binding",
+      "task_online_check_allows_current_operation",
+      "task_cancellation_refuses_online_use",
+      "withdrawn_task_grant_refuses_new_issuance",
+      "rollback_preserves_native_identities_and_journal",
+      "rollback_preserves_spent_actor",
+      "rollback_accepts_fresh_software_evidence",
+      "removal_preparation_refuses_new_issuance",
+      "removed_provider_is_absent",
+      "removal_preserves_native_identities_and_journal",
+      "removed_provider_cannot_issue_delegation",
+      "removal_preserves_native_client_credentials",
+      "reinstall_retains_explicit_exchange_disable",
+      "reinstall_preserves_spent_actor",
+      "explicit_reactivation_accepts_fresh_software_evidence"
+    ]
   }
 }

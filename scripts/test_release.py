@@ -16,6 +16,34 @@ spec.loader.exec_module(qualification)
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_lifecycle_proof_requires_exact_binary_baseline_checks_and_clean_source(self):
+        contract = {"checks": ["upgrade", "rollback", "removal"]}
+        baseline = {"schema": 1, "repository": "example/provider", "revision": "b" * 40}
+        images = {"postgres": "postgres@sha256:" + "a" * 64, "keycloak": {"26.8.1": "keycloak@sha256:" + "b" * 64}}
+        valid = {"schema": 1, "complete": True, "revision": "a" * 40, "keycloak": "26.8.1", "jar_sha256": "c" * 64,
+                 "baseline": {**baseline, "jar_sha256": "d" * 64}, "checks": dict.fromkeys(contract["checks"], True),
+                 "images": {"postgres": images["postgres"], "keycloak": images["keycloak"]["26.8.1"]}, "worktree_dirty": False}
+        release.validate_lifecycle(valid, "26.8.1", "a" * 40, "c" * 64, contract, baseline, images)
+        for change in ({"complete": False}, {"revision": "b" * 40}, {"keycloak": "26.8.0"}, {"jar_sha256": "e" * 64},
+                       {"baseline": {**baseline, "revision": "e" * 40, "jar_sha256": "d" * 64}}, {"baseline": baseline},
+                       {"checks": {}}, {"checks": dict.fromkeys(contract["checks"], False)}, {"images": {}}, {"worktree_dirty": True}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                release.validate_lifecycle({**valid, **change}, "26.8.1", "a" * 40, "c" * 64, contract, baseline, images)
+
+    def test_cluster_proof_rejects_foreign_incomplete_dirty_or_cache_only_runs(self):
+        contract = {"state_store": "database", "test_class": "native.Cluster", "tests": ["replay", "recovery"]}
+        images = {"postgres": "postgres@sha256:" + "a" * 64, "keycloak": {"26.8.1": "keycloak@sha256:" + "b" * 64}}
+        valid = {"schema": 1, "complete": True, "revision": "a" * 40, "keycloak": "26.8.1", "state_store": "database",
+                 "jar_sha256": "c" * 64, "cluster_tests": ["native.Cluster/replay", "native.Cluster/recovery"],
+                 "images": {"postgres": images["postgres"], "keycloak": images["keycloak"]["26.8.1"]},
+                 "measurements": {"complete": True}, "worktree_dirty": False}
+        release.validate_cluster(valid, "26.8.1", "a" * 40, "c" * 64, contract, images)
+        for change in ({"complete": False}, {"revision": "b" * 40}, {"keycloak": "26.8.0"},
+                       {"state_store": "cache"}, {"jar_sha256": "d" * 64}, {"cluster_tests": []}, {"images": {}},
+                       {"measurements": {}}, {"worktree_dirty": True}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                release.validate_cluster({**valid, **change}, "26.8.1", "a" * 40, "c" * 64, contract, images)
+
     def metadata(self):
         revision, annotation = "a" * 40, "b" * 40
         return {
@@ -53,20 +81,24 @@ class ReleaseTests(unittest.TestCase):
     def test_provider_rejects_missing_metadata_wrong_version_or_shaded_classes(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "provider.jar"
-            entries = {"META-INF/LICENSE": "license", "META-INF/NOTICE": "notice", "bounded-delegation.properties": "version=0.1.0-rc.1\n",
+            entries = {"META-INF/LICENSE": "license", "META-INF/NOTICE": "notice", "bounded-delegation.properties": "version=0.1.0-rc.1\nkeycloakVersion=26.8.0\n",
                        "META-INF/services/org.keycloak.protocol.oidc.TokenExchangeProviderFactory": "provider",
                        "META-INF/services/org.keycloak.services.resource.RealmResourceProviderFactory": "discovery",
                        "META-INF/services/org.keycloak.services.resources.admin.ext.AdminRealmResourceProviderFactory": "admin",
                        "META-INF/services/org.keycloak.services.ui.extend.UiPageProviderFactory": "page",
                        "META-INF/services/org.keycloak.services.ui.extend.UiTabProviderFactory": "tab",
                        "io/alien6/keycloak/delegation/Provider.class": b"\xca\xfe\xba\xbe\x00\x00\x00A"}
-            for change in ({}, {"bounded-delegation.properties": "version=foreign"}, {"org/keycloak/Shaded.class": b"\xca\xfe\xba\xbe\x00\x00\x00A"},
+            for change in ({}, {"bounded-delegation.properties": "version=foreign"},
+                           {"bounded-delegation.properties": "version=0.1.0-rc.1\nkeycloakVersion=26.8.0\nkeycloakVersion=26.8.1\n"},
+                           {"org/keycloak/Shaded.class": b"\xca\xfe\xba\xbe\x00\x00\x00A"},
                            {"io/alien6/keycloak/delegation/Provider.class": b"\xca\xfe\xba\xbe\x00\x00\x00B"}):
                 with ZipFile(path, "w") as jar:
                     for name, value in {**entries, **change}.items():
                         jar.writestr(name, value)
                 if not change:
                     release.validate_jar(path, "0.1.0-rc.1")
+                    with self.assertRaisesRegex(ValueError, "SDK mismatch"):
+                        release.validate_jar(path, "0.1.0-rc.1", sdk="26.8.1")
                     compiled = Path(temporary) / "classes"
                     for name, value in entries.items():
                         target = compiled / name
@@ -94,7 +126,7 @@ class ReleaseTests(unittest.TestCase):
             incoming = root / "incoming"
             incoming.mkdir()
             files = {}
-            for suffix in (".jar", "-sources.jar", "-javadoc.jar", "-sbom.json", "-qualification.json"):
+            for suffix in (".jar", "-sources.jar", "-javadoc.jar", "-sbom.json", "-qualification.json", "-cluster-qualification.json", "-lifecycle-qualification.json"):
                 name = "bounded-delegation-0.1.0-rc.1-keycloak-26.8.0" + suffix
                 (incoming / name).write_bytes(b"synthetic asset")
                 files[name] = hashlib.sha256(b"synthetic asset").hexdigest()

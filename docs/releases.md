@@ -2,9 +2,8 @@
 
 ## Version and scope
 
-The project is currently `0.1.0-SNAPSHOT`. The intended first public candidate is
-**0.1.0-rc.1**, after native qualification and maintainer review. No release or tag
-has been issued as part of repository preparation. The current release validator
+The project prepares **0.1.0-rc.1** as its first public experimental candidate,
+after native qualification and maintainer review. The current release validator
 accepts experimental prereleases only; stable publication requires a separately
 reviewed readiness/support-policy change and closing the runtime gaps in the
 [roadmap](roadmap.md).
@@ -24,6 +23,8 @@ Each SDK cell supplies:
 - `...-sbom.json`: CycloneDX inventory including provided Keycloak dependencies,
   excluding test dependencies. These provided libraries are not shaded into the JAR.
 - `...-qualification.json`: clean source/SDK identity, exact native outcomes and JAR SHA256.
+- `...-cluster-qualification.json`: exact two-node topology, pinned images, JAR SHA256 and failure measurements.
+- `...-lifecycle-qualification.json`: baseline/candidate JAR identities, persistent native graph, coordinated upgrade/rollback and guarded removal/reinstall checks.
 - `release-SDK.json`: asset hashes and matrix-cell identity.
 
 The complete bundle adds LICENSE, NOTICE, the exact committed source archive,
@@ -39,11 +40,12 @@ coordinates must never be overwritten with different SDK builds.
 ```sh
 make release-dry-run KEYCLOAK_VERSION=26.7.5
 make release-dry-run KEYCLOAK_VERSION=26.8.0
+make release-dry-run KEYCLOAK_VERSION=26.8.1
 ```
 
-Each command runs native qualification, generates all SDK assets and checks the
+Each command runs native, two-node database-state and provider lifecycle qualification, generates all SDK assets and checks the
 provider's Java 21 bytecode, packaged version/licenses, SDK inventory and hashes.
-CI also downloads both immutable SDK candidates and exercises the full bundle
+CI also downloads all immutable SDK candidates and exercises the full bundle
 assembly. Candidate manifests are explicitly non-releasable. Local/CI rehearsal
 does not exercise production GitHub OIDC signing or remote publication.
 

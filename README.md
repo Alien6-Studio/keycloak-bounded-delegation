@@ -5,7 +5,7 @@
 [![Java 21](https://img.shields.io/badge/Java-21-007396)](CONTRIBUTING.md)
 [![Keycloak compatibility](https://img.shields.io/badge/Keycloak-26.7.5%20%7C%2026.8.0%20%7C%2026.8.1-4d4d4d)](compatibility.json)
 [![Experimental](https://img.shields.io/badge/status-experimental-orange)](docs/roadmap.md)
-[![Release: unreleased](https://img.shields.io/badge/release-unreleased-lightgrey)](CHANGELOG.md)
+[![Release candidate](https://img.shields.io/badge/release-0.1.0--rc.1-orange)](https://github.com/Alien6-Studio/keycloak-bounded-delegation/releases/tag/v0.1.0-rc.1)
 
 Give a service limited permission to act on behalf of another service, with
 **bounded permissions, audience, lifetime and delegation depth**.
@@ -51,9 +51,12 @@ configuration remains available through the Admin API.
 - One declared audience, at most **600 seconds** and **four inherited hops**.
 - Actor replay protection and refusal of stale identity bindings or changed ancestor grants.
 - Console/API administration with native permissions, validation and administrative audit events.
+- Optional [task authorization](docs/rfcs/RFC-0002-task-authorization.md), with issuer-controlled single-use approval, cancellation and mandatory online recipient checks.
 
 The current profile supports **software service accounts and UMA permissions**.
-Human delegation, multi-node failover and production readiness remain unqualified.
+Human delegation and production readiness remain unqualified. A disposable
+[two-node suite](docs/testing.md#two-node-failure-qualification) covers the explicit
+database-backed single-use topology; this does not certify other cache topologies.
 Withdrawing a grant stops future issuance; existing offline JWTs remain valid
 until expiry. See [security boundaries](SECURITY.md) and the [roadmap](docs/roadmap.md).
 
@@ -69,8 +72,12 @@ Use JDK 21 and Chrome; no Docker, Go or consumer repository is needed. Run SDK
 variants sequentially locally. See [testing](docs/testing.md) and
 [CONTRIBUTING.md](CONTRIBUTING.md) for the full matrix and checks.
 
-The first planned prerelease is **0.1.0-rc.1**; nothing is published yet. The
+The first experimental candidate is **0.1.0-rc.1**. The
 [release workflow](docs/releases.md) qualifies every SDK and prepares versioned
 JARs, sources, Javadoc, SBOM, checksums and attestations in a GitHub draft.
+After publication, download the JAR matching your exact Keycloak version from the
+[candidate assets](https://github.com/Alien6-Studio/keycloak-bounded-delegation/releases/tag/v0.1.0-rc.1).
+Verify its checksums and provenance before installation; Maven Central publication
+is not configured.
 
 [Architecture](docs/architecture.md) · [Roadmap](docs/roadmap.md)

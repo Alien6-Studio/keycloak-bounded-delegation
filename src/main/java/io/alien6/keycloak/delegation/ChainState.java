@@ -76,15 +76,15 @@ record ChainState(int depth, int maxDepth, int maxTTLSeconds, Map<String, String
         values.put("maxDepth", Integer.toString(maxDepth));
         values.put("maxTTLSeconds", Integer.toString(maxTTLSeconds));
         String key = key(realm, "issued", token.getId());
-        if (token.getExp() == null || token.getExp() <= now || !session.singleUseObjects().putIfAbsent(key, token.getExp() - now)) {
+        if (token.getExp() == null || token.getExp() <= now || !NativeState.claim(session, key, token.getExp() - now)) {
             throw new Bounds.Rejected("chain_record_unavailable");
         }
         if (!session.singleUseObjects().replace(key, values)) throw new Bounds.Rejected("chain_record_unavailable");
     }
 
     static void consumeActor(KeycloakSession session, RealmModel realm, AccessToken token, long now) {
-        if (token.getExp() == null || token.getExp() <= now || !session.singleUseObjects()
-                .putIfAbsent(key(realm, "used", token.getId()), token.getExp() - now)) throw new Bounds.Rejected("actor_replayed");
+        if (token.getExp() == null || token.getExp() <= now || !NativeState.claim(session,
+                key(realm, "used", token.getId()), token.getExp() - now)) throw new Bounds.Rejected("actor_replayed");
     }
 
     private static String key(RealmModel realm, String purpose, String id) {

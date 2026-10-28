@@ -7,12 +7,12 @@ repository scaffolding does not mark the security/runtime gates below complete.
 | --- | --- | --- |
 | Independent extension | Native functional tests, version-specific builds, public protocol and contribution documentation | Qualified by the required native SDK matrix |
 | Console and API administration | Native forms, shared server validation, RBAC/audit, withdrawal and Chrome/OAuth end-to-end tests | Implemented; complete SDK qualification required |
-| First experimental prerelease | Protected-main source, verified signed tag, complete SDK matrix, versioned assets/SBOM/checksums/attestations, reviewed scope and known limitations | Workflow prepared; no release issued |
-| Cluster qualification | Two or more real Keycloak nodes with shared DB/cache; cross-node replay, chain evidence, failover and measured withdrawal/expiry behavior | Open |
-| Operational qualification | SDK upgrade/removal, alternate exchange routes, provider failures, leak checks and performance budgets | Partially covered; complete matrix open |
+| First experimental prerelease | Protected-main source, verified signed tag, complete SDK matrix, versioned assets/SBOM/checksums/attestations, reviewed scope and known limitations | Candidate 0.1.0-rc.1; publication requires the exact tag's complete release workflow |
+| Cluster qualification | Two real Keycloak nodes with shared PostgreSQL and native database-backed single-use state; replay, chain, partition and restart evidence | Required three-SDK clean CI and final-tag qualification; cache-only recovery unsupported |
+| Operational qualification | Provider upgrade/removal, alternate exchange routes, provider failures, leak checks and performance budgets | Required coordinated baseline/candidate rollback and guarded removal/reinstall qualification; mixed-version rolling upgrades unqualified |
 | Upstream design agreement | Maintainer discussion, overlap review with native policies, agreed first scope and configuration | Not submitted |
 | Upstream implementation | Focused patch on current Keycloak main, native functional tests, documentation, DCO and AI disclosure | Not started |
-| Stable extension release | Runtime gaps above closed with linked evidence, stable configuration/support policy and maintainer sign-off | Blocked by open qualification work |
+| Stable extension release | Runtime gaps above closed with linked evidence, stable configuration/support policy and maintainer sign-off | Experimental; stable readiness and support policy not declared |
 
 The first upstream candidate should be small: optional lifetime/depth bounds
 integrated with native exchange. Full authority intersection, cluster evidence and
@@ -23,3 +23,9 @@ semantics. No accepted upstream issue or maintenance commitment is implied.
 Consumer-specific installed tests, Kubernetes identity federation and external
 configuration-journal recovery remain in consumer repositories. They are useful
 interop evidence, not the extension's identity or its upstream contribution scope.
+
+Hanko 1.1.0 includes optional issuer-controlled task authorization, with native
+database state, one-use approvals, cancellation and online resource enforcement.
+Default software-v1 remains compatible. Native/consumer clean CI and release
+qualification are still required; the feature name is independent of product
+versioning. See the [selected contract](rfcs/RFC-0002-task-authorization.md).
