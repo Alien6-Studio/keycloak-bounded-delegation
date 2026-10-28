@@ -18,14 +18,14 @@ Do not copy the sources or Javadoc JAR into `providers/`.
 
 ## Release downloads
 
-The experimental release candidate is **0.1.0-rc.1**. Choose the binary whose
+The experimental release candidate is **0.1.0-rc.2**. Choose the binary whose
 `keycloak-SDK` suffix exactly matches the server. For Keycloak 26.8.1:
 
 ```sh
-gh release download v0.1.0-rc.1 --repo Alien6-Studio/keycloak-bounded-delegation \
-  --pattern bounded-delegation-0.1.0-rc.1-keycloak-26.8.1.jar --pattern SHA256SUMS
+gh release download v0.1.0-rc.2 --repo Alien6-Studio/keycloak-bounded-delegation \
+  --pattern bounded-delegation-0.1.0-rc.2-keycloak-26.8.1.jar --pattern SHA256SUMS
 sha256sum --check --ignore-missing SHA256SUMS
-gh attestation verify bounded-delegation-0.1.0-rc.1-keycloak-26.8.1.jar \
+gh attestation verify bounded-delegation-0.1.0-rc.2-keycloak-26.8.1.jar \
   --repo Alien6-Studio/keycloak-bounded-delegation
 ```
 

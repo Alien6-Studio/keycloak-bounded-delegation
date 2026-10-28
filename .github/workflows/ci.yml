@@ -34,6 +34,11 @@ jobs:
         env:
           PRE_COMMIT_HOME: ${{ runner.temp }}/extension-pre-commit
         run: make hooks-check policy-check
+      - name: Verify the live read-only release metadata transport
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PYTHONPATH=scripts python3 -c 'import os, release; repository=os.environ["GITHUB_REPOSITORY"]; metadata=release.github(repository, ""); release.require(metadata.get("full_name")==repository, "Repository metadata identity mismatch"); print("GitHub repository metadata transport: PASS")'
       - name: Scan the complete component history for secrets
         run: .tools/hook-tools/gitleaks git --redact --no-banner .
       - name: Verify every pull-request commit's DCO certification

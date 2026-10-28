@@ -35,7 +35,8 @@ def pom_version():
 
 
 def github(repository, path):
-    result = subprocess.run(["gh", "api", "--method", "GET", "repos/" + repository + "/" + path],
+    endpoint = "repos/" + repository + ("/" + path if path else "")
+    result = subprocess.run(["gh", "api", "--method", "GET", endpoint],
                             capture_output=True, timeout=30, check=True)
     require(len(result.stdout) <= 8 * 1024 * 1024, "GitHub metadata exceeds its size budget")
     return json.loads(result.stdout)
