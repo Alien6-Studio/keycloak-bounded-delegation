@@ -35,16 +35,19 @@ public final class BoundedTokenExchangeProvider extends StandardTokenExchangePro
     private GrantDocument.Grant grant;
     private ChainState chain;
     private ClientModel target;
+    private TaskContext.Stored task;
 
     @Override public boolean supports(TokenExchangeContext context) {
         // Claim the whole internal access-token route before native/legacy providers.
         // Missing actor_token must not launder a delegated token through another route.
-        return SoftwareProfile.ID.equals(context.getRealm().getAttribute(GrantDocument.REALM_ATTRIBUTE))
-                && (context.getParams().getActorToken() != null || context.getParams().getSubjectToken() != null);
+        return context.getRealm().getAttribute(GrantDocument.REALM_ATTRIBUTE) != null;
     }
 
     @Override protected Response tokenExchange() {
         try {
+            if (!SoftwareProfile.ID.equals(realm.getAttribute(GrantDocument.REALM_ATTRIBUTE))) {
+                throw new Bounds.Rejected("profile_unsupported");
+            }
             validateForm();
             if (!OIDCAdvancedConfigWrapper.fromClientModel(client).isStandardTokenExchangeEnabled()
                     || client.isPublicClient() || !client.isEnabled()) throw new Bounds.Rejected("requester_disabled");
@@ -60,6 +63,9 @@ public final class BoundedTokenExchangeProvider extends StandardTokenExchangePro
             }
             var actorResult = verify(params.getActorToken(), params.getActorTokenType());
             actor = actorResult.token();
+            if (actor.getOtherClaims().containsKey(TaskContext.CLAIM) || subject.getOtherClaims().containsKey(TaskContext.CLAIM)) {
+                throw new Bounds.Rejected("task_chain_unsupported");
+            }
             if (subject.getConfirmation() != null || actor.getConfirmation() != null) throw new Bounds.Rejected("sender_constraint_unsupported");
             String requestedType = params.getRequestedTokenType();
             if (requestedType != null && !OAuth2Constants.ACCESS_TOKEN_TYPE.equals(requestedType)) throw new Bounds.Rejected("token_type_unsupported");
@@ -98,6 +104,8 @@ public final class BoundedTokenExchangeProvider extends StandardTokenExchangePro
                     new Bounds.Grant(grant.authority(), chain.maxDepth(), chain.maxTTLSeconds()),
                     requested, currentActor, currentSubject, now, now + chain.maxTTLSeconds());
             validateResources();
+            task = TaskContext.admit(session, realm, document, configuration, grant, actor, subject, requested,
+                    formParams.getFirst("task_context"), now);
             ChainState.consumeActor(session, realm, actor, now);
             UserSessionModel transientSession = new UserSessionManager(session).createUserSession(
                     KeycloakModelUtils.generateId(), realm, subjectResult.user(), subjectResult.user().getUsername(),
@@ -118,6 +126,10 @@ public final class BoundedTokenExchangeProvider extends StandardTokenExchangePro
         for (String key : List.of("requested_subject", "requested_issuer", "subject_issuer")) {
             if (formParams.containsKey(key)) throw new Bounds.Rejected("exchange_unsupported");
         }
+        if (params.getActorToken() != null) ExchangeForm.validate(formParams.keySet());
+        else if (formParams.containsKey("task_context") || formParams.containsKey("task_assertion")) {
+            throw new Bounds.Rejected("profile_unsupported");
+        }
     }
 
     private AuthenticationManager.AuthResult verify(String raw, String type) {
@@ -131,7 +143,7 @@ public final class BoundedTokenExchangeProvider extends StandardTokenExchangePro
     }
 
     private void softwareIdentity(ClientModel expected, UserModel user, AccessToken token) {
-        if (expected.isPublicClient() || !expected.isServiceAccountsEnabled() || !expected.getId().equals(user.getServiceAccountClientLink())
+        if (!expected.isEnabled() || expected.isPublicClient() || !expected.isServiceAccountsEnabled() || !expected.getId().equals(user.getServiceAccountClientLink())
                 || !user.equals(session.users().getServiceAccount(expected)) || !user.isEnabled()
                 || (!expected.getClientId().equals(token.getIssuedFor()) && token.getOtherClaims().get("act") == null)) {
             throw new Bounds.Rejected("software_identity_required");
@@ -143,6 +155,7 @@ public final class BoundedTokenExchangeProvider extends StandardTokenExchangePro
         String uri = params.getResource().getFirst();
         var authorization = session.getProvider(org.keycloak.authorization.AuthorizationProvider.class);
         var server = authorization.getStoreFactory().getResourceServerStore().findByClient(target);
+        if (server == null || uri == null || uri.isBlank()) throw new Bounds.Rejected("resource_undeclared");
         for (String id : requested.permissions().keySet()) {
             var resource = authorization.getStoreFactory().getResourceStore().findById(server, id);
             if (resource == null || !resource.getUris().contains(uri)) throw new Bounds.Rejected("resource_undeclared");
@@ -171,7 +184,7 @@ public final class BoundedTokenExchangeProvider extends StandardTokenExchangePro
                 new Bounds.Grant(grant.authority(), chain.maxDepth(), chain.maxTTLSeconds()), requested,
                 currentActor, currentSubject, now, output.getExp());
         NativeAuthority.apply(output, decision.authority());
-        output.exp(decision.expiresAt());
+        output.exp(task == null ? decision.expiresAt() : Math.min(decision.expiresAt(), task.expiresAt()));
         output.audience(target.getClientId());
         Map<String, Object> act = new HashMap<>();
         act.put("sub", actor.getSubject());
@@ -180,6 +193,7 @@ public final class BoundedTokenExchangeProvider extends StandardTokenExchangePro
         if (previous == null) previous = subject.getOtherClaims().get("act");
         if (previous != null) act.put("act", previous);
         output.setOtherClaims("act", act);
+        if (task != null) TaskContext.bindOutput(session, realm, task, output, now);
         chain.save(session, realm, output, now);
     }
 }

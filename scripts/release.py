@@ -93,6 +93,17 @@ def validate_jar(path, version, compiled=None):
                     "Packaged provider bytes differ from the official-framework test inputs")
 
 
+def validate_cluster(cluster, sdk, revision, jar_sha256, contract, images, dry_run=False):
+    require(cluster.get("schema") == 1 and cluster.get("complete") is True and cluster.get("revision") == revision
+            and cluster.get("keycloak") == sdk and cluster.get("state_store") == contract["state_store"]
+            and cluster.get("jar_sha256") == jar_sha256
+            and cluster.get("cluster_tests") == [contract["test_class"] + "/" + name for name in contract["tests"]]
+            and cluster.get("images") == {"keycloak": images["keycloak"][sdk], "postgres": images["postgres"]}
+            and cluster.get("measurements", {}).get("complete") is True,
+            "Missing or foreign multi-node database-state qualification")
+    require(dry_run or cluster.get("worktree_dirty") is False, "Cluster qualification must bind clean source")
+
+
 def package(sdk, output, dry_run=False):
     contract = document(ROOT / "compatibility.json")
     require(sdk in contract["keycloak"], "Unqualified SDK")
@@ -111,6 +122,9 @@ def package(sdk, output, dry_run=False):
     stem = "bounded-delegation-keycloak-" + sdk
     binary = target / (stem + ".jar")
     require(digest(binary) == report.get("jar_sha256"), "Provider changed after qualification")
+    cluster = document(target / "qualification/cluster.json")
+    images = document(ROOT / contract["cluster"]["images"])
+    validate_cluster(cluster, sdk, revision, digest(binary), contract["cluster"], images, dry_run)
     validate_jar(binary, version, target / "classes")
     sbom = document(target / "sbom.json")
     require(sbom.get("bomFormat") == "CycloneDX" and sbom.get("metadata", {}).get("component", {}).get("version") == version,
@@ -120,7 +134,8 @@ def package(sdk, output, dry_run=False):
     assets = {"bounded-delegation-" + version + "-keycloak-" + sdk + suffix: source for suffix, source in (
         (".jar", binary), ("-sources.jar", target / (stem + "-sources.jar")),
         ("-javadoc.jar", target / (stem + "-javadoc.jar")), ("-sbom.json", target / "sbom.json"),
-        ("-qualification.json", target / "qualification/results.json"))}
+        ("-qualification.json", target / "qualification/results.json"),
+        ("-cluster-qualification.json", target / "qualification/cluster.json"))}
     require(not output.exists() or not any(output.iterdir()), "Use an empty staging directory; assets are never overwritten")
     output.mkdir(parents=True, exist_ok=True)
     files = {}
@@ -147,7 +162,7 @@ def assemble(incoming, output, dry_run=False):
         require(record.get("schema") == 1 and record.get("version") == version and record.get("revision") == revision
                 and record.get("keycloak") == sdk and (dry_run or record.get("releasable") is True and record.get("worktree_dirty") is False), "Foreign or non-releasable SDK cell")
         names = {"bounded-delegation-" + version + "-keycloak-" + sdk + suffix
-                 for suffix in (".jar", "-sources.jar", "-javadoc.jar", "-sbom.json", "-qualification.json")}
+                 for suffix in (".jar", "-sources.jar", "-javadoc.jar", "-sbom.json", "-qualification.json", "-cluster-qualification.json")}
         require(isinstance(record.get("files"), dict) and set(record["files"]) == names, "Unexpected release asset inventory")
         for name, value in record["files"].items():
             require(re.fullmatch(r"[0-9a-f]{64}", value) is not None and digest(incoming / name) == value, "Release asset checksum mismatch")

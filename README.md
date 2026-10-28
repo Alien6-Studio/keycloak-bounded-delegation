@@ -51,9 +51,12 @@ configuration remains available through the Admin API.
 - One declared audience, at most **600 seconds** and **four inherited hops**.
 - Actor replay protection and refusal of stale identity bindings or changed ancestor grants.
 - Console/API administration with native permissions, validation and administrative audit events.
+- Optional [task authorization](docs/rfcs/RFC-0002-task-authorization.md), with issuer-controlled single-use approval, cancellation and mandatory online recipient checks.
 
 The current profile supports **software service accounts and UMA permissions**.
-Human delegation, multi-node failover and production readiness remain unqualified.
+Human delegation and production readiness remain unqualified. A disposable
+[two-node suite](docs/testing.md#two-node-failure-qualification) covers the explicit
+database-backed single-use topology; this does not certify other cache topologies.
 Withdrawing a grant stops future issuance; existing offline JWTs remain valid
 until expiry. See [security boundaries](SECURITY.md) and the [roadmap](docs/roadmap.md).
 

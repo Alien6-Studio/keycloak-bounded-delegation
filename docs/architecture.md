@@ -34,8 +34,15 @@ compiled and qualified for every supported SDK.
 
 A failure after actor consumption can consume the input without returning an
 output token. Callers must obtain a new actor token; issuance is not an
-exactly-once delivery protocol. Multi-node atomicity/failover remains a release
-readiness gap until tested with a shared database/cache.
+exactly-once delivery protocol. The [cluster suite](testing.md#two-node-failure-qualification)
+tests native database-backed single-use state (`stateless`) with a shared
+PostgreSQL database. It does not establish correctness of arbitrary embedded
+cache topologies or immediate policy revocation during a partition.
+
+Unknown or blank selected profile values refuse bounded requests rather than
+falling through to standard exchange. Only removing the realm selector restores
+the unselected native path. Bounded actor requests use a strict form allowlist;
+software-v1 rejects task-context fields and unsupported exchange options.
 
 ## Administrative wire contract
 
@@ -55,6 +62,15 @@ role or group conditions, maximum depth and TTL. Software-v1 requires nonempty
 UMA permissions and imposes four-hop / 600-second ceilings. Unknown fields,
 duplicate JSON keys, malformed values and oversized documents are rejected.
 The complete parser is [GrantDocument.java](../src/main/java/io/alien6/keycloak/delegation/GrantDocument.java).
+
+Task-required audiences explicitly use `version: 2` and
+`profile: task-bound-software` in that same attribute. This journal discriminator
+refuses legacy parsers; it does not rename the product or the default software
+profile. The separate [task contract](rfcs/RFC-0002-task-authorization.md) defines
+issuer registration, exact-input one-use approval, signed context, cancellation
+and authenticated online recipient checks. It requires native database-backed
+single-use state and one hop. Existing version-1 audiences keep their wire bytes
+and behavior even when the task option is enabled elsewhere in the realm.
 
 `oauth.bounded-delegation.actor.v1` on an actor blocks omission of `actor_token`
 from falling through to ordinary native exchange. Configuration writers own its

@@ -27,6 +27,8 @@ public final class CapabilityResource implements RealmResourceProvider, RealmRes
                         && org.keycloak.common.Profile.isFeatureEnabled(org.keycloak.common.Profile.Feature.TOKEN_EXCHANGE_STANDARD_V2));
     }
     @Override public Object getResource() { return this; }
+    @jakarta.ws.rs.Path("task-context")
+    public TaskContextResource taskContext() { return new TaskContextResource(session); }
     @Override public RealmResourceProvider create(KeycloakSession session) { return new CapabilityResource(session); }
     @Override public String getId() { return "bounded-delegation"; }
     @Override public void init(org.keycloak.Config.Scope config) {}

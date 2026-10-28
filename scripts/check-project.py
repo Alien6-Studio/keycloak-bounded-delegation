@@ -22,6 +22,10 @@ def check(root=ROOT):
     default = pom.findtext("m:properties/m:keycloak.version", namespaces=ns)
     if default not in versions:
         raise ValueError("Default Maven SDK is not qualified")
+    task_source = (root / "src/main/java/io/alien6/keycloak/delegation/TaskContext.java").read_text()
+    task_sdks = re.search(r'Set.of\(([^)]*)\).contains\(Version.VERSION\)', task_source)
+    if task_sdks is None or sorted(re.findall(r'"([0-9.]+)"', task_sdks[1])) != sorted(versions):
+        raise ValueError("Task capability SDK window differs from native qualification")
     make_default = re.search(r"(?m)^KEYCLOAK_VERSION \?= (\S+)$", (root / "Makefile").read_text())
     if make_default is None or make_default[1] != default:
         raise ValueError("Make and Maven must use the same qualified default SDK")
@@ -31,6 +35,17 @@ def check(root=ROOT):
     names = sorted(re.findall(r"@Test\s+void\s+(\w+)\(", test.read_text()))
     if not names or names != contract["native"]["tests"] or len(names) != len(set(names)):
         raise ValueError("Native test inventory drift")
+    cluster = contract["cluster"]
+    cluster_source = root / "src/cluster/java" / (cluster["test_class"].replace(".", "/") + ".java")
+    cluster_tests = sorted(re.findall(r"@Test\s+@Order\(\d+\)\s+void\s+(\w+)\(", cluster_source.read_text()))
+    images = json.loads((root / cluster["images"]).read_text())
+    if (cluster.get("required_for_release") is not True or cluster.get("state_store") != "database" or cluster.get("feature") != "stateless"
+            or not cluster_tests or cluster_tests != cluster["tests"] or len(cluster_tests) != len(set(cluster_tests))
+            or images.get("schema") != 1 or set(images.get("keycloak", {})) != set(versions)
+            or any(not re.fullmatch(r"quay\.io/keycloak/keycloak:" + re.escape(version) + r"@sha256:[0-9a-f]{64}", image)
+                   for version, image in images["keycloak"].items())
+            or not re.fullmatch(r"docker\.io/library/postgres:[0-9.]+@sha256:[0-9a-f]{64}", images.get("postgres", ""))):
+        raise ValueError("Native database/cluster qualification inventory drift")
     for filename in ("ci.yml", "release.yml"):
         workflow = yaml.safe_load((root / ".github/workflows" / filename).read_text())
         if workflow["jobs"]["qualify"]["strategy"]["matrix"]["keycloak"] != versions:

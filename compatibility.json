@@ -18,12 +18,17 @@
       "ancestorGrantChangeStopsChainingWithoutClaimingOfflineRevocation",
       "concurrentActorReplayHasExactlyOneSuccessfulIssuance",
       "consoleCreatesEditsAndWithdrawsARealDelegation",
+      "disabledActorOrSubjectRefusesAlreadyIssuedInputs",
       "discoveryReportsOnlyVersionedPublicCapabilities",
       "disjointInputPermissionsIssueNoToken",
+      "distinctFreshActorsAllowBoundedFanOutAndSpentActorsNeverRetry",
+      "distinctProtectedAudiencesNeverShareResourceAuthority",
+      "duplicateFormFieldsAndClaimMapperInjectionCannotWidenAuthority",
       "independentAdministrativeWritesPreserveBothGrantsAndRevocationEvidence",
       "inheritedDepthRefusesTheThirdHop",
       "intersectsBothInputsAndGrantAndBoundsAudienceExpiryAndClaims",
       "invalidTokensAudienceScopesAndRefreshRequestsAreRefused",
+      "issuerControlledTaskApprovalBindsInputsAndCancelsOnlineUse",
       "liveNativePolicyWithdrawalRefusesAlreadyIssuedInputs",
       "nonCommittedAdministrativeGrantsIssueNoToken",
       "publicSubjectCannotReusePreviouslyIssuedConfidentialInputs",
@@ -31,9 +36,11 @@
       "replacedAdministrativeIdentityBindingRefusesIssuance",
       "replacedNativeClientCannotInheritConsoleDelegation",
       "shortInputBoundsOutputAndUnusedExpiredInputCannotIssue",
+      "taskApprovalCannotSurvivePolicyWithdrawalExpiryOrClaimStripping",
+      "unknownProfileAndTaskParametersCannotSelectOrdinaryExchange",
       "unselectedRealmPreservesOrdinaryNativeExchange"
     ],
-    "minimum_unit_tests": 16
+    "minimum_unit_tests": 20
   },
   "integrations": {
     "hanko": {
@@ -67,5 +74,20 @@
         "26.8.0"
       ]
     }
+  },
+  "cluster": {
+    "test_class": "io.alien6.keycloak.delegation.ClusteredDelegationIT",
+    "tests": [
+      "cachePartitionWithDatabaseAndHttpsStillAvailableCannotDoubleIssue",
+      "committedPolicyWithdrawalIsObservedOnTheOtherNode",
+      "freshFanOutAttenuatesEveryGrantWithoutMergingChains",
+      "killedNodeAndRejoinCannotForgetSpentActorEvidence",
+      "sameActorAcrossNodesHasAtMostOneAcceptedIssuance",
+      "taskApprovalAndCancellationRemainNativeAcrossNodesAndPartition"
+    ],
+    "state_store": "database",
+    "feature": "stateless",
+    "required_for_release": true,
+    "images": "cluster-images.json"
   }
 }

@@ -10,16 +10,17 @@ final class SoftwareProfile {
     static final String CONTRACT = "bounded-delegation/" + ID;
     static final int MAX_DEPTH = 4;
     static final int MAX_TTL_SECONDS = 600;
-    static final String VERSION = version();
+    static final String VERSION = property("version");
+    static final String SDK = property("keycloakVersion");
 
     private SoftwareProfile() {}
 
-    private static String version() {
+    private static String property(String name) {
         try (var stream = SoftwareProfile.class.getResourceAsStream("/bounded-delegation.properties")) {
             if (stream == null) throw new IllegalStateException("Missing extension version metadata");
             Properties properties = new Properties();
             properties.load(stream);
-            String value = properties.getProperty("version");
+            String value = properties.getProperty(name);
             if (value == null || !value.matches("[0-9]+\\.[0-9]+\\.[0-9]+(?:[-.][A-Za-z0-9.-]+)?")) {
                 throw new IllegalStateException("Invalid extension version metadata");
             }

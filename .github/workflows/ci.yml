@@ -84,6 +84,7 @@ jobs:
           path: |
             target/${{ matrix.keycloak }}/surefire-reports/
             target/${{ matrix.keycloak }}/failsafe-reports/
+            target/${{ matrix.keycloak }}/cluster-failsafe-reports/
             target/${{ matrix.keycloak }}/qualification/
             target/${{ matrix.keycloak }}/sbom.json
           if-no-files-found: error

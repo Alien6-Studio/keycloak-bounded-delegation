@@ -16,6 +16,20 @@ spec.loader.exec_module(qualification)
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_cluster_proof_rejects_foreign_incomplete_dirty_or_cache_only_runs(self):
+        contract = {"state_store": "database", "test_class": "native.Cluster", "tests": ["replay", "recovery"]}
+        images = {"postgres": "postgres@sha256:" + "a" * 64, "keycloak": {"26.8.1": "keycloak@sha256:" + "b" * 64}}
+        valid = {"schema": 1, "complete": True, "revision": "a" * 40, "keycloak": "26.8.1", "state_store": "database",
+                 "jar_sha256": "c" * 64, "cluster_tests": ["native.Cluster/replay", "native.Cluster/recovery"],
+                 "images": {"postgres": images["postgres"], "keycloak": images["keycloak"]["26.8.1"]},
+                 "measurements": {"complete": True}, "worktree_dirty": False}
+        release.validate_cluster(valid, "26.8.1", "a" * 40, "c" * 64, contract, images)
+        for change in ({"complete": False}, {"revision": "b" * 40}, {"keycloak": "26.8.0"},
+                       {"state_store": "cache"}, {"jar_sha256": "d" * 64}, {"cluster_tests": []}, {"images": {}},
+                       {"measurements": {}}, {"worktree_dirty": True}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                release.validate_cluster({**valid, **change}, "26.8.1", "a" * 40, "c" * 64, contract, images)
+
     def metadata(self):
         revision, annotation = "a" * 40, "b" * 40
         return {
@@ -94,7 +108,7 @@ class ReleaseTests(unittest.TestCase):
             incoming = root / "incoming"
             incoming.mkdir()
             files = {}
-            for suffix in (".jar", "-sources.jar", "-javadoc.jar", "-sbom.json", "-qualification.json"):
+            for suffix in (".jar", "-sources.jar", "-javadoc.jar", "-sbom.json", "-qualification.json", "-cluster-qualification.json"):
                 name = "bounded-delegation-0.1.0-rc.1-keycloak-26.8.0" + suffix
                 (incoming / name).write_bytes(b"synthetic asset")
                 files[name] = hashlib.sha256(b"synthetic asset").hexdigest()

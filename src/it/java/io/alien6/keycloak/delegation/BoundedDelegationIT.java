@@ -31,6 +31,10 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.testframework.annotations.InjectAdminClient;
 import org.keycloak.testframework.annotations.InjectKeycloakUrls;
 import org.keycloak.testframework.annotations.KeycloakIntegrationTest;
+import org.keycloak.testframework.https.CertificatesConfig;
+import org.keycloak.testframework.https.CertificatesConfigBuilder;
+import org.keycloak.testframework.https.InjectCertificates;
+import org.keycloak.testframework.https.ManagedCertificates;
 import org.keycloak.testframework.server.KeycloakServerConfig;
 import org.keycloak.testframework.server.KeycloakServerConfigBuilder;
 import org.keycloak.testframework.server.KeycloakUrls;
@@ -58,10 +62,11 @@ public class BoundedDelegationIT {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String ACCESS = "urn:ietf:params:oauth:token-type:access_token";
     private static final String OWNER_ATTRIBUTE = "bounded.test.deployment";
-    private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    private HttpClient http;
 
     @InjectAdminClient Keycloak admin;
     @InjectKeycloakUrls KeycloakUrls urls;
+    @InjectCertificates(config = TLS.class) ManagedCertificates certificates;
 
     private String realm;
     private String issuer;
@@ -75,11 +80,18 @@ public class BoundedDelegationIT {
 
     public static class Server implements KeycloakServerConfig {
         @Override public KeycloakServerConfigBuilder configure(KeycloakServerConfigBuilder config) {
-            return config.dependencyCurrentProject().features(org.keycloak.common.Profile.Feature.DECLARATIVE_UI);
+            return config.dependencyCurrentProject().features(org.keycloak.common.Profile.Feature.DECLARATIVE_UI,
+                    org.keycloak.common.Profile.Feature.STATELESS).option("http-enabled", "false");
         }
     }
 
+    public static class TLS implements CertificatesConfig {
+        @Override public CertificatesConfigBuilder configure(CertificatesConfigBuilder config) { return config.tlsEnabled(true); }
+    }
+
     @BeforeEach void configureNativeRealm() throws Exception {
+        http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).sslContext(certificates.getClientSSLContext()).build();
+        assertTrue(urls.getBase().startsWith("https://"), "Native authorization tests require HTTPS");
         realm = "bounded-" + UUID.randomUUID();
         issuer = urls.getBase() + "/realms/" + realm;
         secret = UUID.randomUUID().toString();
@@ -260,6 +272,116 @@ public class BoundedDelegationIT {
                 "subject_token", rpt("subject", "read"), "subject_token_type", ACCESS, "audience", "invoice-api")));
     }
 
+    @Test void distinctProtectedAudiencesNeverShareResourceAuthority() throws Exception {
+        ClientRepresentation recipient = new ClientRepresentation();
+        recipient.setClientId("mcp-api"); recipient.setEnabled(true); recipient.setProtocol("openid-connect");
+        recipient.setPublicClient(false); recipient.setFullScopeAllowed(false); recipient.setServiceAccountsEnabled(true);
+        recipient.setAuthorizationServicesEnabled(true); recipient.setSecret(secret);
+        recipient.setAttributes(Map.of(OWNER_ATTRIBUTE, "mcp-api", "standard.token.exchange.enabled", "true"));
+        try (var response = admin.realm(realm).clients().create(recipient)) { assertEquals(201, response.getStatus()); }
+        String id = admin.realm(realm).clients().findByClientId("mcp-api").getFirst().getId(); clients.put("mcp-api", id);
+        String target = "/admin/realms/" + realm + "/clients/" + id + "/authz/resource-server";
+        for (String route : List.of("permission", "resource", "policy")) {
+            for (JsonNode value : admin("GET", target + "/" + route, null).body()) {
+                admin("DELETE", target + "/" + route + "/" + value.path(route.equals("resource") ? "_id" : "id").asText(), null);
+            }
+        }
+        String read = created(admin("POST", target + "/scope", Map.of("name", "read")));
+        String secondResource = created(admin("POST", target + "/resource", Map.of("name", "invoice", "ownerManagedAccess", false,
+                "uris", List.of("https://mcp.example.test/invoice"), "scopes", List.of(Map.of("id", read, "name", "read")))));
+        String secondPolicy = created(admin("POST", target + "/policy/client", Map.of("name", "mcp-readers", "type", "client", "logic", "POSITIVE",
+                "decisionStrategy", "AFFIRMATIVE", "clients", List.of(clients.get("actor"), clients.get("subject")))));
+        admin("POST", target + "/permission/scope", Map.of("name", "mcp-read", "type", "scope", "logic", "POSITIVE", "decisionStrategy", "AFFIRMATIVE",
+                "resources", List.of(secondResource), "scopes", List.of(read), "policies", List.of(secondPolicy)));
+        GrantDocument.Grant grant = new GrantDocument.Grant("mcp-only", binding("actor"), binding("subject"),
+                new Authority(Set.of(), Set.of(), Map.of(), Map.of(secondResource, Set.of("read"))),
+                List.of(condition("actor"), condition("subject")), 1, 30);
+        GrantDocument second = new GrantDocument(1, "Committed", "mcp-owner", "mcp-revision", document.realmID(), binding("mcp-api"), List.of(grant), List.of());
+        attributes("mcp-api", Map.of(GrantDocument.ATTRIBUTE, JSON.writeValueAsString(second)));
+        String actor = rptAt("actor", "mcp-api", "read"), subject = rptAt("subject", "mcp-api", "read");
+        denied(exchange("actor", rpt("subject", "read"), actor, Map.of("audience", "mcp-api")));
+        denied(exchange("actor", subject, rpt("actor", "read"), Map.of("audience", "mcp-api")));
+        denied(exchange("actor", subject, actor, Map.of("audience", "mcp-api", "resource", "https://api.example.test/invoice")));
+        AccessToken output = issued(exchange("actor", subject, actor, Map.of("audience", "mcp-api", "resource", "https://mcp.example.test/invoice")));
+        assertTrue(Set.of(output.getAudience()).equals(Set.of("mcp-api")), "Protected audiences overlapped");
+        assertTrue(NativeAuthority.fromToken(output).permissions().equals(Map.of(secondResource, Set.of("read"))), "Resource authority crossed audiences");
+        denied(exchange("actor", rptAt("subject", "mcp-api", "read"), rpt("actor", "read"), Map.of()));
+    }
+
+    @Test void unknownProfileAndTaskParametersCannotSelectOrdinaryExchange() throws Exception {
+        String subject = rpt("subject", "read");
+        for (String name : List.of("task_assertion", "task_context", "authorization_details", "requested_subject", "subject_issuer", "permission")) {
+            denied(exchange("actor", subject, rpt("actor", "read"), Map.of(name, "untrusted")));
+        }
+        for (String profile : List.of("task-bound-software-v2", "software-v99", "")) {
+            var current = admin.realm(realm).toRepresentation();
+            current.setAttributes(Map.of(GrantDocument.REALM_ATTRIBUTE, profile));
+            admin.realm(realm).update(current);
+            denied(exchange("actor", subject, rawIssued(token("actor", Map.of("grant_type", "client_credentials"))), Map.of()));
+            denied(token("actor", Map.of("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange",
+                    "subject_token", subject, "subject_token_type", ACCESS, "audience", "invoice-api")));
+            assertFalse(request("GET", issuer + "/bounded-delegation", null, null, null).body().path("enabled").asBoolean());
+        }
+    }
+
+    @Test void duplicateFormFieldsAndClaimMapperInjectionCannotWidenAuthority() throws Exception {
+        String subject = rpt("subject", "read"), actor = rpt("actor", "read");
+        Map<String, List<String>> form = new HashMap<>(Map.of("client_id", List.of("actor"), "client_secret", List.of(secret),
+                "grant_type", List.of("urn:ietf:params:oauth:grant-type:token-exchange"), "subject_token", List.of(subject),
+                "subject_token_type", List.of(ACCESS), "actor_token", List.of(actor), "actor_token_type", List.of(ACCESS)));
+        for (String field : List.of("audience", "resource", "actor_token", "scope")) {
+            Map<String, List<String>> duplicate = new HashMap<>(form);
+            duplicate.put("audience", List.of("invoice-api"));
+            duplicate.put(field, List.of("first", "second"));
+            denied(request("POST", issuer + "/protocol/openid-connect/token", duplicate, null, null));
+        }
+        admin("POST", "/admin/realms/" + realm + "/clients/" + clients.get("actor") + "/protocol-mappers/models",
+                Map.of("name", "untrusted-task", "protocol", "openid-connect", "protocolMapper", "oidc-hardcoded-claim-mapper",
+                        "config", Map.of("claim.name", "task_context", "claim.value", "untrusted-task", "jsonType.label", "String", "access.token.claim", "true")));
+        AccessToken output = issued(exchange("actor", subject, rpt("actor", "read"), Map.of()));
+        assertEquals(Set.of("act"), output.getOtherClaims().keySet());
+        assertEquals(Map.of(resource, Set.of("read")), NativeAuthority.fromToken(output).permissions());
+    }
+
+    @Test void distinctFreshActorsAllowBoundedFanOutAndSpentActorsNeverRetry() throws Exception {
+        String subject = rpt("subject", "read", "write");
+        for (int count : List.of(1, 10, 100)) {
+            List<String> actors = new ArrayList<>();
+            for (int i = 0; i < count; i++) actors.add(rpt("actor", "read", "write"));
+            assertEquals(count, actors.stream().map(raw -> {
+                try { return verified(raw).getId(); }
+                catch (Exception ex) { throw new IllegalStateException("Native actor verification failed"); }
+            }).distinct().count());
+            try (var executor = Executors.newFixedThreadPool(Math.min(count, 16))) {
+                List<Callable<Result>> attempts = actors.stream().<Callable<Result>>map(actor -> () -> exchange("actor", subject, actor, Map.of())).toList();
+                for (var future : executor.invokeAll(attempts)) {
+                    AccessToken output = issued(future.get());
+                    assertEquals(Map.of(resource, Set.of("read")), NativeAuthority.fromToken(output).permissions());
+                    assertEquals(1, ChainState.actorDepth(output.getOtherClaims().get("act")));
+                    assertTrue(output.getExp() <= verified(subject).getExp());
+                }
+            }
+            // A response may have been lost after issuance. Retrying that actor is
+            // still replay; a fresh actor is the only supported recovery input.
+            denied(exchange("actor", subject, actors.getFirst(), Map.of()));
+            issued(exchange("actor", subject, rpt("actor", "read"), Map.of()));
+        }
+    }
+
+    @Test void disabledActorOrSubjectRefusesAlreadyIssuedInputs() throws Exception {
+        for (String name : List.of("actor", "subject")) {
+            String subject = rpt("subject", "read"), actor = rpt("actor", "read");
+            var handle = admin.realm(realm).clients().get(clients.get(name));
+            var current = handle.toRepresentation();
+            current.setEnabled(false);
+            handle.update(current);
+            denied(exchange("actor", subject, actor, Map.of()));
+            current.setEnabled(true);
+            handle.update(current);
+            issued(exchange("actor", rpt("subject", "read"), rpt("actor", "read"), Map.of()));
+        }
+    }
+
     @Test void unselectedRealmPreservesOrdinaryNativeExchange() throws Exception {
         RealmRepresentation current = admin.realm(realm).toRepresentation();
         current.setAttributes(Map.of());
@@ -412,6 +534,7 @@ public class BoundedDelegationIT {
         admin.realm(realm).users().get(account.getId()).roles().clientLevel(management.getId()).add(List.of(
                 admin.realm(realm).clients().get(management.getId()).roles().get("realm-admin").toRepresentation()));
         var options = new ChromeOptions(); options.addArguments("--headless=new", "--window-size=1440,1400", "--disable-dev-shm-usage");
+        options.setAcceptInsecureCerts(true); // Only the framework-owned disposable console certificate.
         WebDriver browser = new ChromeDriver(options);
         try {
             var wait = new WebDriverWait(browser, Duration.ofSeconds(30));
@@ -485,6 +608,104 @@ public class BoundedDelegationIT {
 
     private String components() { return "/admin/realms/" + realm + "/components"; }
     private String diagnostics() { return "/admin/realms/" + realm + "/bounded-delegation"; }
+    @Test void issuerControlledTaskApprovalBindsInputsAndCancelsOnlineUse() throws Exception {
+        enableTasks();
+        assertTrue(request("GET", taskURL(), null, null, null).body().path("enabled").asBoolean());
+        String actor = rpt("actor", "read"), subject = rpt("subject", "read");
+        denied(exchange("actor", subject, actor, Map.of()));
+        Map<String, Object> registration = taskRegistration(actor, subject, 30);
+        denied(request("POST", taskURL() + "/contexts", null, taskBearer("actor"), registration));
+        Result created = request("POST", taskURL() + "/contexts", null, taskBearer("task-authority"), registration);
+        assertEquals(201, created.status());
+        String reference = created.body().path("reference").asText(), approval = created.body().path("approval").asText();
+        assertTrue(reference.matches("[0-9a-f]{64}") && approval.matches("[0-9a-f]{64}"));
+        assertFalse(reference.equals(approval));
+        denied(exchange("actor", subject, rpt("actor", "read"), Map.of("task_context", approval)));
+        AccessToken output = issued(exchange("actor", subject, actor, Map.of("task_context", approval)));
+        assertEquals(Set.of("invoice-api"), Set.of(output.getAudience()));
+        assertTrue(output.getExp() <= created.body().path("expiresAt").asLong());
+        assertEquals(reference, ((Map<?, ?>) output.getOtherClaims().get(TaskContext.CLAIM)).get("reference"));
+        denied(exchange("actor", subject, actor, Map.of("task_context", approval)));
+        Map<String, Object> check = taskCheck(reference, output);
+        assertTrue(request("POST", taskURL() + "/check", null, taskBearer("invoice-api"), check).body().path("active").asBoolean());
+        var changed = new HashMap<>(check); changed.put("parametersHash", "b".repeat(64));
+        denied(request("POST", taskURL() + "/check", null, taskBearer("invoice-api"), changed));
+        changed = new HashMap<>(check); changed.put("scope", "write");
+        denied(request("POST", taskURL() + "/check", null, taskBearer("invoice-api"), changed));
+        denied(request("POST", taskURL() + "/check", null, taskBearer("subject"), check));
+        denied(request("DELETE", taskURL() + "/contexts/" + reference, null, taskBearer("actor"), null));
+        assertEquals(200, request("DELETE", taskURL() + "/contexts/" + reference, null, taskBearer("task-authority"), null).status());
+        denied(request("POST", taskURL() + "/check", null, taskBearer("invoice-api"), check));
+        denied(exchange("actor", subject, actor, Map.of("task_context", approval)));
+        // Existing byte-compatible software grants are still usable with the option enabled elsewhere.
+        save(document);
+        issued(exchange("actor", rpt("subject", "read"), rpt("actor", "read"), Map.of()));
+    }
+
+    @Test void taskApprovalCannotSurvivePolicyWithdrawalExpiryOrClaimStripping() throws Exception {
+        enableTasks();
+        String actor = rpt("actor", "read"), subject = rpt("subject", "read");
+        Result registered = request("POST", taskURL() + "/contexts", null, taskBearer("task-authority"), taskRegistration(actor, subject, 30));
+        assertEquals(201, registered.status());
+        Result issued = exchange("actor", subject, actor, Map.of("task_context", registered.body().path("approval").asText()));
+        AccessToken output = issued(issued);
+        var check = taskCheck(registered.body().path("reference").asText(), output);
+        // A task-bearing output cannot become an unconstrained input in another profile.
+        save(document);
+        denied(exchange("subject", rawIssued(issued), rpt("subject", "read"), Map.of()));
+        denied(request("POST", taskURL() + "/check", null, taskBearer("invoice-api"), check));
+        enableTaskDocument();
+        actor = rpt("actor", "read"); subject = rpt("subject", "read");
+        registered = request("POST", taskURL() + "/contexts", null, taskBearer("task-authority"), taskRegistration(actor, subject, 1));
+        assertEquals(201, registered.status());
+        Thread.sleep(2100);
+        denied(exchange("actor", subject, actor, Map.of("task_context", registered.body().path("approval").asText())));
+        var realmState = admin.realm(realm).toRepresentation();
+        var attributes = new HashMap<>(realmState.getAttributes()); attributes.remove(TaskContext.PROFILE_ATTRIBUTE);
+        realmState.setAttributes(attributes); admin.realm(realm).update(realmState);
+        assertFalse(request("GET", taskURL(), null, null, null).body().path("enabled").asBoolean());
+        denied(exchange("actor", rpt("subject", "read"), rpt("actor", "read"), Map.of("task_context", "a".repeat(64))));
+    }
+
+    private String taskURL() { return issuer + "/bounded-delegation/task-context"; }
+    private String taskBearer(String client) throws Exception { return rawIssued(token(client, Map.of("grant_type", "client_credentials"))); }
+    private Map<String, Object> taskRegistration(String actor, String subject, int ttl) throws Exception {
+        AccessToken a = verified(actor), s = verified(subject);
+        return Map.of("audience", api, "grant", "actor-subject", "actorJti", a.getId(), "subjectJti", s.getId(),
+                "actorSubject", a.getSubject(), "subjectSubject", s.getSubject(), "permissions", Map.of(resource, Set.of("read")),
+                "parametersHash", "a".repeat(64), "ttlSeconds", ttl);
+    }
+    private Map<String, Object> taskCheck(String reference, AccessToken token) {
+        return Map.of("reference", reference, "tokenId", token.getId(), "parametersHash", "a".repeat(64), "resource", resource, "scope", "read");
+    }
+    private void enableTaskDocument() throws Exception {
+        var grants = document.grants().stream().map(grant -> new GrantDocument.Grant(grant.name(), grant.actor(), grant.subject(),
+                grant.authority(), grant.conditions(), 1, grant.maxTTLSeconds())).toList();
+        save(new GrantDocument(2, document.phase(), document.ownerUID(), document.revision(), document.realmID(), document.audience(), grants,
+                document.retiredActors(), TaskContext.PROFILE));
+    }
+    private void enableTasks() throws Exception {
+        if (!clients.containsKey("task-authority")) {
+            var authority = new ClientRepresentation(); authority.setClientId("task-authority"); authority.setEnabled(true);
+            authority.setProtocol("openid-connect"); authority.setPublicClient(false); authority.setFullScopeAllowed(false);
+            authority.setServiceAccountsEnabled(true); authority.setSecret(secret);
+            authority.setAttributes(Map.of(OWNER_ATTRIBUTE, "task-authority"));
+            try (var response = admin.realm(realm).clients().create(authority)) { assertEquals(201, response.getStatus()); }
+            clients.put("task-authority", admin.realm(realm).clients().findByClientId("task-authority").getFirst().getId());
+            for (String name : List.of("task-authority", "invoice-api")) {
+                admin("POST", "/admin/realms/" + realm + "/clients/" + clients.get(name) + "/protocol-mappers/models",
+                        Map.of("name", "task-endpoint", "protocol", "openid-connect", "protocolMapper", "oidc-audience-mapper",
+                                "config", Map.of("included.custom.audience", TaskContext.ENDPOINT_AUDIENCE, "access.token.claim", "true")));
+            }
+        }
+        var realmState = admin.realm(realm).toRepresentation();
+        var attributes = new HashMap<>(realmState.getAttributes());
+        attributes.put(TaskContext.PROFILE_ATTRIBUTE, TaskContext.PROFILE);
+        attributes.put(TaskContext.ISSUER_ATTRIBUTE, JSON.writeValueAsString(binding("task-authority")));
+        realmState.setAttributes(attributes); admin.realm(realm).update(realmState);
+        enableTaskDocument();
+    }
+
     private void consoleOwnership() {
         var client = admin.realm(realm).clients().get(api);
         var current = client.toRepresentation();
@@ -534,9 +755,12 @@ public class BoundedDelegationIT {
         return request("POST", issuer + "/protocol/openid-connect/token", form, null, null);
     }
     private String rpt(String client, String... scopes) throws Exception {
+        return rptAt(client, "invoice-api", scopes);
+    }
+    private String rptAt(String client, String audience, String... scopes) throws Exception {
         String access = rawIssued(token(client, Map.of("grant_type", "client_credentials")));
         return rawIssued(request("POST", issuer + "/protocol/openid-connect/token", Map.of(
-                "grant_type", List.of("urn:ietf:params:oauth:grant-type:uma-ticket"), "audience", List.of("invoice-api"),
+                "grant_type", List.of("urn:ietf:params:oauth:grant-type:uma-ticket"), "audience", List.of(audience),
                 "permission", Arrays.stream(scopes).map(scope -> "invoice#" + scope).toList()), access, null));
     }
     private Result exchange(String client, String subject, String actor, Map<String, String> extra) throws Exception {
@@ -588,7 +812,7 @@ public class BoundedDelegationIT {
             body = JSON.writeValueAsString(json);
             request.header("Content-Type", "application/json");
         }
-        var result = HTTP.send(request.method(method, HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+        var result = http.send(request.method(method, HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
         assertTrue(result.body().length() <= 1024 * 1024, "Response budget exceeded");
         return new Result(result.statusCode(), result.body().isBlank() ? JSON.createObjectNode() : JSON.readTree(result.body()), result.headers().firstValue("Location").orElse(null));
     }

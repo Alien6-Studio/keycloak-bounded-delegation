@@ -51,7 +51,47 @@ records target locations and remaining work.
 
 ## Before the first release
 
-The [roadmap](roadmap.md) tracks multi-node cache/replay/chain failover, alternate
-routes and version upgrade/removal qualification. Performance under sustained
+The [roadmap](roadmap.md) tracks clean CI evidence, alternate routes and version
+upgrade/removal qualification. Performance under sustained
 load, human/native consent, production incidents and all downstream topologies
 are not established by the current CI. Keep release claims tied to actual tests.
+
+## Two-node failure qualification
+
+Build the exact SDK JAR, then run `make cluster-test KEYCLOAK_VERSION=VERSION`
+with JDK 21 and Docker. `scripts/cluster.py` creates two isolated Keycloak JVMs
+and PostgreSQL from [digest-pinned images](../cluster-images.json). HTTPS validates
+the lab CA. The nodes share the database; a separate JGroups network allows a
+cache partition while HTTPS and database access remain available. Cleanup targets
+only randomly named, labelled lab resources. No existing deployment is used.
+
+The required topology enables Keycloak's native `stateless` build feature so
+single-use actor and chain state use the database. The suite checks competing
+replay across nodes, independent fresh fan-out at 1/10/100 requests, inherited
+depth/rights, acknowledged policy withdrawal, process kill/restart/rejoin and a
+cache-only partition. It records accepted counts, p50/p95, withdrawal and recovery
+timings. Requests use at most 16 worker threads. These bounded synthetic samples
+are not sustained overload or a throughput SLA. Per-node limits are two CPUs and
+1 GiB; limits are recorded, not measured memory consumption or a hardware benchmark.
+
+`qualification/cluster.json` binds outcomes, measurements, image digests and JAR
+hash to the exact SDK and source. `cluster-failsafe-reports/` retains raw JUnit
+outcomes. Dirty local runs require `--allow-dirty` and remain nonpublishable.
+Release packaging requires this evidence as well as the primary native suite;
+CI must regenerate it from clean committed source for all supported SDKs.
+
+During a cache partition, policy writes may fail or have an uncertain outcome.
+The suite distinguishes an acknowledged withdrawal from such a failure and does
+not infer global revocation from an unacknowledged write. Already issued offline
+JWTs remain valid until expiry. The optional diagnostic `--state-store cache`
+uses synchronous two-owner action-token storage and denies partition reads/writes;
+it failed node-rejoin recovery in local testing and is **not a qualified topology**.
+Neither the extension nor Hanko silently changes an existing deployment to the
+database-backed feature. Select and qualify the topology explicitly before use.
+
+Hanko 1.1.0 retains default software-v1 and adds explicit task authorization.
+Native cases exercise issuer authentication, exact input-JTI approval binding,
+single use, signed context, authenticated resource checks, cancellation, expiry,
+policy withdrawal and refusal of task-claim stripping. The cluster suite adds
+competing approval consumption and cancellation across a cache partition/rejoin.
+See the [task authorization contract](rfcs/RFC-0002-task-authorization.md).
