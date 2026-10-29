@@ -591,6 +591,7 @@ public class BoundedDelegationIT {
         var options = new ChromeOptions(); options.addArguments("--headless=new", "--window-size=1440,1400", "--disable-dev-shm-usage");
         options.setAcceptInsecureCerts(true); // Only the framework-owned disposable console certificate.
         WebDriver browser = new ChromeDriver(options);
+        Throwable primaryFailure = null;
         try {
             var wait = new WebDriverWait(browser, Duration.ofSeconds(30));
             String console = urls.getBase() + "/admin/" + realm + "/console/#/" + realm;
@@ -626,12 +627,21 @@ public class BoundedDelegationIT {
             browser.findElement(By.cssSelector("button[data-testid='save']")).click();
             wait.until(d -> administrativeField(id, "enabled").equals("false"));
             denied(exchange("actor", rpt("subject", "read"), rpt("actor", "read"), Map.of()));
-        } catch (RuntimeException | AssertionError failure) {
-            var screenshot = java.nio.file.Path.of("target", System.getProperty("bounded.keycloak.version"), "qualification", "console-failure.png");
-            java.nio.file.Files.createDirectories(screenshot.getParent());
-            java.nio.file.Files.write(screenshot, ((org.openqa.selenium.TakesScreenshot) browser).getScreenshotAs(OutputType.BYTES));
+        } catch (Exception | AssertionError failure) {
+            primaryFailure = failure;
+            try {
+                var screenshot = java.nio.file.Path.of("target", System.getProperty("bounded.keycloak.version"), "qualification", "console-failure.png");
+                java.nio.file.Files.createDirectories(screenshot.getParent());
+                java.nio.file.Files.write(screenshot, ((org.openqa.selenium.TakesScreenshot) browser).getScreenshotAs(OutputType.BYTES));
+            } catch (Exception diagnostic) { failure.addSuppressed(diagnostic); }
             throw failure;
-        } finally { browser.quit(); }
+        } finally {
+            try { browser.quit(); }
+            catch (RuntimeException cleanup) {
+                if (primaryFailure == null) throw cleanup;
+                primaryFailure.addSuppressed(cleanup);
+            }
+        }
     }
 
     private void selectClient(WebDriver browser, WebDriverWait wait, String label, String name) {

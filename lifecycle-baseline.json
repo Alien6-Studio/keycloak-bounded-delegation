@@ -1,5 +1,11 @@
 {
   "schema": 1,
   "repository": "Alien6-Studio/keycloak-bounded-delegation",
-  "revision": "fe0643e86fadb9e89a6662b4b666449fed8d64ad"
+  "revision": "ca7dda820950da09ad6e30c617217882eee38697",
+  "tag": "v0.1.0-rc.2",
+  "published_jars": {
+    "26.7.5": "a1e47c6664da316a92ed387e199539b7c5adc56ccde5a702ad5ea169d05aeaed",
+    "26.8.0": "d221ae72c389261dbc08d7bf7f3c9f9ff064af5859fb6be2e1be10f357c6a5b0",
+    "26.8.1": "883a4e3ee9a68e495f863f865e6bb2f6e6e3c50b3f945b01830414251f21510b"
+  }
 }

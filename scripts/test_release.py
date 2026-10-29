@@ -36,6 +36,12 @@ class ReleaseTests(unittest.TestCase):
                  "baseline": {**baseline, "jar_sha256": "d" * 64}, "checks": dict.fromkeys(contract["checks"], True),
                  "images": {"postgres": images["postgres"], "keycloak": images["keycloak"]["26.8.1"]}, "worktree_dirty": False}
         release.validate_lifecycle(valid, "26.8.1", "a" * 40, "c" * 64, contract, baseline, images)
+        published = {**baseline, "published_jars": {"26.8.1": "d" * 64}}
+        release.validate_lifecycle({**valid, "baseline": {**published, "jar_sha256": "d" * 64}},
+                                   "26.8.1", "a" * 40, "c" * 64, contract, published, images)
+        with self.assertRaises(ValueError):
+            release.validate_lifecycle({**valid, "baseline": {**published, "jar_sha256": "e" * 64}},
+                                       "26.8.1", "a" * 40, "c" * 64, contract, published, images)
         for change in ({"complete": False}, {"revision": "b" * 40}, {"keycloak": "26.8.0"}, {"jar_sha256": "e" * 64},
                        {"baseline": {**baseline, "revision": "e" * 40, "jar_sha256": "d" * 64}}, {"baseline": baseline},
                        {"checks": {}}, {"checks": dict.fromkeys(contract["checks"], False)}, {"images": {}}, {"worktree_dirty": True}):
@@ -86,9 +92,29 @@ class ReleaseTests(unittest.TestCase):
                 release.verify_tag("example/extension", "v0.1.0-rc.1", changed.__getitem__)
 
     def test_stable_snapshot_and_malformed_tags_fail_before_network(self):
-        for tag in ("v0.1.0", "v0.1.0-SNAPSHOT", "main", "v01.0.0-rc.1", "v0.1.0-rc.1\n", "v0.1.0-rc.1;echo bad"):
+        for tag in ("v0.1.1", "v0.2.0", "v0.1.0-SNAPSHOT", "main", "v01.0.0-rc.1", "v0.1.0-rc.1\n", "v0.1.0-rc.1;echo bad"):
             with self.subTest(tag=tag), self.assertRaises(ValueError):
                 release.verify_tag("example/extension", tag, lambda path: self.fail("unexpected network"))
+
+    def test_stable_tag_keeps_the_same_signature_and_ancestry_guards(self):
+        docs = self.metadata()
+        docs = {key.replace("v0.1.0-rc.1", "v0.1.0"): value for key, value in docs.items()}
+        docs["git/ref/tags/v0.1.0"]["ref"] = "refs/tags/v0.1.0"
+        docs["git/tags/" + "b" * 40]["tag"] = "v0.1.0"
+        result = release.verify_tag("example/extension", "v0.1.0", docs.__getitem__)
+        self.assertFalse(result["prerelease"])
+        docs["git/tags/" + "b" * 40]["verification"]["verified"] = False
+        with self.assertRaises(ValueError):
+            release.verify_tag("example/extension", "v0.1.0", docs.__getitem__)
+
+    def test_stable_release_needs_the_declared_version_and_support_document(self):
+        self.assertFalse(release.release_version("0.1.0")["prerelease"])
+        self.assertTrue(release.release_version("0.1.0-rc.2")["prerelease"])
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaises(ValueError):
+                release.release_version("0.1.0", root=Path(temporary))
+        with self.assertRaises(ValueError):
+            release.release_version("0.1.0", {"release": {"stable_version": "0.2.0"}})
 
     def test_provider_rejects_missing_metadata_wrong_version_or_shaded_classes(self):
         with tempfile.TemporaryDirectory() as temporary:

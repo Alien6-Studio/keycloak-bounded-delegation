@@ -2,6 +2,10 @@
   "schema": 1,
   "contract": "bounded-delegation/software-v1",
   "state": "experimental",
+  "release": {
+    "stable_version": "0.1.0",
+    "support_policy": "docs/support-policy.md"
+  },
   "java": 21,
   "keycloak": [
     "26.7.5",
@@ -47,7 +51,7 @@
   "integrations": {
     "hanko": {
       "repository": "Alien6-Studio/hankoshell-operator",
-      "revision": "069c9e7ef8017f952d120308534e91fee3bb1d81",
+      "revision": "a254e55b9ab60746f8109e218360261a5ad4022b",
       "root": "TestRealKeycloakBoundedDelegationExtension",
       "tests": [
         "TestRealKeycloakBoundedDelegationExtension",

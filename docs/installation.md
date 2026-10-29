@@ -1,38 +1,50 @@
-# Install and configure the experimental extension
+# Install and configure the extension
 
 ## Requirements
 
-Use an isolated development server first. The qualified versions are listed in
-[compatibility.json](../compatibility.json). Build with JDK 21 and select exactly
-the running Keycloak SDK. A realm administrator installs and activates the
-provider; an OAuth client cannot opt itself into an administrative grant.
+Use an isolated server first and review the [0.1.0 support policy](support-policy.md).
+Select a JAR matching exactly the running SDK in
+[compatibility.json](../compatibility.json), with Java 21. A realm administrator
+installs and activates the provider; an OAuth client cannot grant itself authority.
+
+## Release downloads
+
+Download **0.1.0** and verify the binary matching your server. For Keycloak 26.8.1:
+
+```sh
+gh release download v0.1.0 --repo Alien6-Studio/keycloak-bounded-delegation \
+  --pattern bounded-delegation-0.1.0-keycloak-26.8.1.jar --pattern SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
+gh attestation verify bounded-delegation-0.1.0-keycloak-26.8.1.jar \
+  --repo Alien6-Studio/keycloak-bounded-delegation
+cp bounded-delegation-0.1.0-keycloak-26.8.1.jar "$KEYCLOAK_HOME/providers/"
+"$KEYCLOAK_HOME/bin/kc.sh" build --features=stateless,declarative-ui
+```
+
+Set `KEYCLOAK_HOME` to the matching server first. Restart every node with the
+same features enabled. The qualified two-node topology uses shared PostgreSQL
+and native database-backed state. `declarative-ui` enables the native console;
+API-only installations can omit that feature. Never install sources/Javadoc JARs
+in `providers/`. See Keycloak's
+[provider deployment guide](https://www.keycloak.org/docs/latest/server_development/index.html).
+
+The release also supplies sources, Javadoc, SBOM and native/two-node/lifecycle
+reports. Verify the attested source matches the signed release and exact SDK.
+The 0.x wire contract retains `experimental: true`; it is independent of the
+stable artifact version. **Operator 1.1.0 accepts rc.2 only**. Keep rc.2 for that
+operator, or upgrade to a consumer explicitly supporting 0.1.0 before replacing
+the provider; see [consumer compatibility](integrations/hanko.md).
+
+## Build from source
+
+Use JDK 21 and the wrapper:
 
 ```sh
 ./mvnw -Dkeycloak.version=26.8.1 verify
 ```
 
-Copy `target/26.8.1/bounded-delegation-keycloak-26.8.1.jar` into the server's
-`providers/` directory, then run `bin/kc.sh build` as part of image construction.
-Follow Keycloak's [provider deployment guide](https://www.keycloak.org/docs/latest/server_development/index.html).
-Do not copy the sources or Javadoc JAR into `providers/`.
-
-## Release downloads
-
-The experimental release candidate is **0.1.0-rc.2**. Choose the binary whose
-`keycloak-SDK` suffix exactly matches the server. For Keycloak 26.8.1:
-
-```sh
-gh release download v0.1.0-rc.2 --repo Alien6-Studio/keycloak-bounded-delegation \
-  --pattern bounded-delegation-0.1.0-rc.2-keycloak-26.8.1.jar --pattern SHA256SUMS
-sha256sum --check --ignore-missing SHA256SUMS
-gh attestation verify bounded-delegation-0.1.0-rc.2-keycloak-26.8.1.jar \
-  --repo Alien6-Studio/keycloak-bounded-delegation
-```
-
-Install the verified provider JAR in `providers/` and rebuild the server as above.
-The release also distributes sources, Javadoc, a per-SDK SBOM and native,
-two-node and lifecycle qualification reports. Review the [release scope and
-verification policy](releases.md); this candidate remains experimental.
+The provider is `target/26.8.1/bounded-delegation-keycloak-26.8.1.jar`.
+Use the same installation and feature configuration as for a verified download.
 
 ## Native prerequisites
 

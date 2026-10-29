@@ -2,9 +2,11 @@
 
 ## Support and reporting
 
-This is an experimental private-SPI extension, currently `0.1.0-rc.2`.
+This independent private-SPI extension publishes qualified version `0.1.0`
+under its [support policy](docs/support-policy.md). The 0.x wire contract retains
+its initial-development marker.
 Only Keycloak versions listed in [compatibility.json](compatibility.json) are
-qualified. There is no stable release or long-term support branch.
+qualified. There is no long-term support branch or response-time SLA.
 
 Report vulnerabilities through the [private reporting form](https://github.com/Alien6-Studio/keycloak-bounded-delegation/security/advisories/new).
 If unavailable, contact [contact@alien6.com](mailto:contact@alien6.com) to request
@@ -51,13 +53,13 @@ confirm those lists; an omitted list is never treated as empty.
 Actions receive read-only repository permissions and cannot approve PRs.
 Dependencies and Actions have weekly Dependabot updates; secret scanning, push
 protection, dependency alerts and private vulnerability reporting are enabled.
-The release workflow can create a draft prerelease only after verified-tag and
-complete SDK qualification gates. Stable publication is blocked while the project
-is experimental. It never creates tags or deploys to Maven Central; see
+The release workflow can create a draft release only after verified-tag and
+complete SDK qualification gates. Stable publication requires the exact reviewed version/support policy and the
+complete native, two-node database-state and published-rc.2 lifecycle evidence. It never creates tags or deploys to Maven Central; see
 [the release policy](docs/releases.md).
 
 The draft release publisher uses the [reviewed `release` environment](.github/release-environment.json), restricted to workflow
 runs from main. It rechecks GitHub-Verified source/tag identity and artifact hashes
-before attestation and draft creation. Build jobs remain read-only; first-release
-OIDC/publication validation is not established by local rehearsal. Downloaded
+before attestation and draft creation. Build jobs remain read-only; OIDC/provenance and actual downloaded files must be verified before public
+publication. Downloaded
 artifact integrity and SDK/version matching are required before installation.

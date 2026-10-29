@@ -7,12 +7,12 @@ repository scaffolding does not mark the security/runtime gates below complete.
 | --- | --- | --- |
 | Independent extension | Native functional tests, version-specific builds, public protocol and contribution documentation | Qualified by the required native SDK matrix |
 | Console and API administration | Native forms, shared server validation, RBAC/audit, withdrawal and Chrome/OAuth end-to-end tests | Implemented; complete SDK qualification required |
-| First experimental prerelease | Protected-main source, verified signed tag, complete SDK matrix, versioned assets/SBOM/checksums/attestations, reviewed scope and known limitations | Candidate 0.1.0-rc.2; publication requires the exact tag's complete release workflow |
+| First experimental prerelease | Protected-main source, verified signed tag, complete SDK matrix, versioned assets/SBOM/checksums/attestations, reviewed scope and known limitations | Published 0.1.0-rc.2; signed source and public distribution verified |
 | Cluster qualification | Two real Keycloak nodes with shared PostgreSQL and native database-backed single-use state; replay, chain, partition and restart evidence | Required three-SDK clean CI and final-tag qualification; cache-only recovery unsupported |
 | Operational qualification | Provider upgrade/removal, alternate exchange routes, provider failures, leak checks and performance budgets | Required coordinated baseline/candidate rollback and guarded removal/reinstall qualification; mixed-version rolling upgrades unqualified |
 | Upstream design agreement | Maintainer discussion, overlap review with native policies, agreed first scope and configuration | Not submitted |
 | Upstream implementation | Focused patch on current Keycloak main, native functional tests, documentation, DCO and AI disclosure | Not started |
-| Stable extension release | Runtime gaps above closed with linked evidence, stable configuration/support policy and maintainer sign-off | Experimental; stable readiness and support policy not declared |
+| Stable extension release | Exact-source native/cluster/lifecycle matrix, published-rc.2 baseline, reviewed software-profile support policy and signed maintainer source | 0.1.0 preparation; publication requires its exact signed tag and complete release evidence |
 
 The first upstream candidate should be small: optional lifetime/depth bounds
 integrated with native exchange. Full authority intersection, cluster evidence and
@@ -29,3 +29,9 @@ database state, one-use approvals, cancellation and online resource enforcement.
 Default software-v1 remains compatible. Native/consumer clean CI and release
 qualification are still required; the feature name is independent of product
 versioning. See the [selected contract](rfcs/RFC-0002-task-authorization.md).
+
+
+The [0.1.0 support policy](support-policy.md) defines the qualified release
+scope. Unsupported human delegation, mixed-version rolling upgrades, cache-only
+recovery and sustained-load guarantees remain explicit future work; they are not
+asserted by a stable artifact version or community directory entry.

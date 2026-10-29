@@ -107,8 +107,8 @@ See the [task authorization contract](rfcs/RFC-0002-task-authorization.md).
 
 ## Provider replacement and removal
 
-`make lifecycle-test KEYCLOAK_VERSION=VERSION` rebuilds the immutable pre-task
-provider source in [lifecycle-baseline.json](../lifecycle-baseline.json) for the
+`make lifecycle-test KEYCLOAK_VERSION=VERSION` downloads and verifies the actual published rc.2
+provider JAR in [lifecycle-baseline.json](../lifecycle-baseline.json) for the
 same exact SDK. It replaces both lab JVMs while retaining their PostgreSQL
 database, native client/service-account identities and grant journal. Signed
 software exchanges and unexpired spent-actor refusal are checked before and
@@ -121,7 +121,7 @@ delegation is refused while native client credentials still work, and reinstalls
 the candidate. Reinstallation does not re-enable exchange; a fresh explicit
 configuration is required. Existing actor replay evidence must survive all phases.
 The 20 required checks and restart timings are bound to source, exact SDK,
-baseline/candidate JAR hashes and pinned server/database images in
+published baseline/candidate JAR hashes and pinned server/database images in
 `qualification/lifecycle.json`. Release packaging rejects missing, foreign or
 incomplete proof. CI runs it for every SDK. This covers coordinated restarts;
 mixed-version rolling upgrades and arbitrary provider versions remain unqualified.

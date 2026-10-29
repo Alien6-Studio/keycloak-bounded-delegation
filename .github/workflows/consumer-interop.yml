@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Alien6-Studio/hankoshell-operator
-          ref: 069c9e7ef8017f952d120308534e91fee3bb1d81
+          ref: a254e55b9ab60746f8109e218360261a5ad4022b
           path: qualification
           persist-credentials: false
       - run: MAVEN_REPO_LOCAL="$HOME/.m2/repository" make consumer-test KEYCLOAK_VERSION=${{ matrix.keycloak }} QUALIFICATION_DIR="$GITHUB_WORKSPACE/qualification"
