@@ -34,6 +34,18 @@ def pom_version():
     return ET.parse(ROOT / "pom.xml").getroot().findtext("{http://maven.apache.org/POM/4.0.0}version")
 
 
+def release_version(version, contract=None, root=None):
+    require(isinstance(version, str) and VERSION.fullmatch(version) is not None
+            and "SNAPSHOT" not in version.upper(), "Invalid release version")
+    if "-" not in version:
+        contract = document(ROOT / "compatibility.json") if contract is None else contract
+        policy = contract.get("release", {})
+        require(policy.get("stable_version") == version
+                and policy.get("support_policy") == "docs/support-policy.md"
+                and ((ROOT if root is None else root) / policy["support_policy"]).is_file(), "Stable version requires its reviewed support policy")
+    return {"version": version, "prerelease": "-" in version}
+
+
 def github(repository, path):
     endpoint = "repos/" + repository + ("/" + path if path else "")
     result = subprocess.run(["gh", "api", "--method", "GET", endpoint],
@@ -46,7 +58,7 @@ def verify_tag(repository, tag, api=None):
     require(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) is not None, "Invalid repository")
     require(isinstance(tag, str) and tag.startswith("v") and VERSION.fullmatch(tag[1:]) is not None, "Invalid release tag")
     version = tag[1:]
-    require("-" in version and "SNAPSHOT" not in version.upper(), "Only explicit experimental prereleases are currently eligible")
+    classification = release_version(version)
     api = api or (lambda path: github(repository, path))
     info = api("")
     require(info.get("full_name") == repository and info.get("default_branch") == "main", "Release repository/default branch mismatch")
@@ -67,7 +79,7 @@ def verify_tag(repository, tag, api=None):
     compare = api("compare/" + revision + "...main")
     require(compare.get("status") in ("ahead", "identical") and compare.get("merge_base_commit", {}).get("sha") == revision,
             "Release source is not on protected main")
-    return {"tag": tag, "version": version, "revision": revision}
+    return {"tag": tag, **classification, "revision": revision}
 
 
 def validate_jar(path, version, compiled=None, sdk=None):
@@ -121,6 +133,9 @@ def validate_lifecycle(proof, sdk, revision, jar_sha256, contract, baseline, ima
             and re.fullmatch(r"[0-9a-f]{64}", proof.get("baseline", {}).get("jar_sha256", "")),
             "Missing or foreign provider lifecycle qualification")
     require(dry_run or proof.get("worktree_dirty") is False, "Lifecycle qualification must bind clean source")
+    if "published_jars" in baseline:
+        require(proof["baseline"]["jar_sha256"] == baseline["published_jars"].get(sdk),
+                "Lifecycle baseline does not match the published SDK binary")
 
 
 def package(sdk, output, dry_run=False):
@@ -128,7 +143,8 @@ def package(sdk, output, dry_run=False):
     require(sdk in contract["keycloak"], "Unqualified SDK")
     version = pom_version()
     require(VERSION.fullmatch(version) is not None, "Invalid project version")
-    require(dry_run or "-" in version and "SNAPSHOT" not in version.upper(), "Production packaging requires a prerelease version")
+    if not dry_run:
+        release_version(version, contract)
     target = ROOT / "target" / sdk
     report = document(target / "qualification/results.json")
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
@@ -177,6 +193,8 @@ def assemble(incoming, output, dry_run=False):
     expected = {"release-" + sdk + ".json" for sdk in contract["keycloak"]}
     require({p.name for p in incoming.glob("release-*.json")} == expected, "Release SDK matrix is incomplete or contains foreign cells")
     version = pom_version()
+    if not dry_run:
+        release_version(version, contract)
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     require(not output.exists() or not any(output.iterdir()), "Use an empty bundle directory")
     accepted = set(expected)
@@ -198,12 +216,14 @@ def assemble(incoming, output, dry_run=False):
         shutil.copyfile(ROOT / name, output / name)
     notes = "\n".join([
         "# Keycloak Bounded Delegation " + version, "",
-        "Experimental software-v1 prerelease. Independently maintained; upstream integration is proposed, not accepted.", "",
+        ("Experimental software-v1 prerelease." if "-" in version else "Qualified 0.1.0 release for the documented software-service-account profile."),
+        "Independently maintained. The 0.x contract retains its initial-development marker; Keycloak upstream integration is not accepted.", "",
         "Source: `" + revision + "`. Qualified SDKs: " + ", ".join(contract["keycloak"]) + ".", "",
         "Assets include the SDK-specific provider, sources, Javadoc, CycloneDX inventory and native qualification evidence.",
         "Provided Keycloak dependencies are inventoried but not shaded into the provider.", "",
         "Two-node replay and coordinated provider replacement are qualified only for the recorded database-backed topology and exact SDKs.",
         "Mixed-version rolling upgrades, sustained production load, human delegation and cache-only recovery remain unqualified.",
+        "Operator 1.1.0 accepts rc.2 only; a consumer build explicitly supporting 0.1.0 is required before upgrading that deployment.",
         "Offline JWT revocation is bounded by expiry. Withdraw grants and wait their maximum lifetime before removing enforcement.", "",
         "Verify SHA256SUMS and `gh attestation verify ASSET --repo Alien6-Studio/keycloak-bounded-delegation` before installation.",
         "Copy only the provider JAR matching your Keycloak SDK into providers/ and rebuild the server.", "",

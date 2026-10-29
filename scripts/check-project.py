@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 
 import yaml
 import lifecycle
+import release as release_tools
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -20,9 +21,13 @@ def check(root=ROOT):
         raise ValueError("Invalid experimental qualification window")
     pom = ET.parse(root / "pom.xml").getroot()
     ns = {"m": "http://maven.apache.org/POM/4.0.0"}
+    policy = contract.get("release", {})
+    if policy != {"stable_version": "0.1.0", "support_policy": "docs/support-policy.md"}:
+        raise ValueError("Stable release requires its exact reviewed support policy")
     default = pom.findtext("m:properties/m:keycloak.version", namespaces=ns)
     if default not in versions:
         raise ValueError("Default Maven SDK is not qualified")
+    release_tools.release_version(pom.findtext("m:version", namespaces=ns), contract, root)
     task_source = (root / "src/main/java/io/alien6/keycloak/delegation/TaskContext.java").read_text()
     task_sdks = re.search(r'Set.of\(([^)]*)\).contains\(Version.VERSION\)', task_source)
     if task_sdks is None or sorted(re.findall(r'"([0-9.]+)"', task_sdks[1])) != sorted(versions):
@@ -51,7 +56,10 @@ def check(root=ROOT):
     baseline = json.loads((root / lifetime["baseline"]).read_text())
     if (lifetime.get("required_for_release") is not True or lifetime.get("checks") != list(lifecycle.CHECKS)
             or baseline.get("schema") != 1 or baseline.get("repository") != "Alien6-Studio/keycloak-bounded-delegation"
-            or not re.fullmatch(r"[0-9a-f]{40}", baseline.get("revision", ""))):
+            or not re.fullmatch(r"[0-9a-f]{40}", baseline.get("revision", ""))
+            or baseline.get("tag") != "v0.1.0-rc.2"
+            or set(baseline.get("published_jars", {})) != set(versions)
+            or any(not re.fullmatch(r"[0-9a-f]{64}", value) for value in baseline["published_jars"].values())):
         raise ValueError("Native lifecycle qualification inventory drift")
     for filename in ("ci.yml", "release.yml"):
         workflow = yaml.safe_load((root / ".github/workflows" / filename).read_text())

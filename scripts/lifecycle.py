@@ -1,6 +1,6 @@
 """Qualify coordinated provider upgrade, guarded rollback, removal and reinstall.
 
-The exact pre-task source is rebuilt for each SDK. Only the lab's two labelled
+The actual published rc.2 JAR is checksum-verified for each SDK. Only the lab's two labelled
 nodes are replaced; their PostgreSQL database, native identities and journals
 remain. Tokens/credentials and OpenSSL inputs stay in the private lab directory.
 """
@@ -45,27 +45,27 @@ def require(value, reason):
 
 def baseline_source(pin, sdk):
     require(pin.get("schema") == 1 and pin.get("repository") == "Alien6-Studio/keycloak-bounded-delegation"
-            and re.fullmatch(r"[0-9a-f]{40}", pin.get("revision", "")), "Invalid lifecycle baseline pin")
-    directory = ROOT / ".tools/cache/lifecycle" / pin["revision"]
-    if not directory.exists():
-        directory.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix="fetch-", dir=directory.parent) as temporary:
-            source = Path(temporary) / "source"
-            source.mkdir()
-            for args in (("init", "--quiet"), ("remote", "add", "origin", "https://github.com/" + pin["repository"] + ".git"),
-                         ("fetch", "--quiet", "--depth=1", "origin", pin["revision"]), ("checkout", "--quiet", "--detach", "FETCH_HEAD")):
-                subprocess.run(["git", "--no-replace-objects", *args], cwd=source, check=True, timeout=120)
-            source.rename(directory)
-    head = subprocess.check_output(["git", "--no-replace-objects", "rev-parse", "HEAD"], cwd=directory, text=True).strip()
-    dirty = subprocess.check_output(["git", "--no-replace-objects", "status", "--porcelain"], cwd=directory, text=True).strip()
-    remote = subprocess.check_output(["git", "remote", "get-url", "origin"], cwd=directory, text=True).strip()
-    require(not directory.is_symlink() and head == pin["revision"] and not dirty
-            and remote == "https://github.com/" + pin["repository"] + ".git", "Modified lifecycle baseline source")
-    env = {**os.environ, "MAVEN_USER_HOME": os.environ.get("MAVEN_USER_HOME", str(ROOT / ".tools/maven-user"))}
-    subprocess.run([str(directory / "mvnw"), "-B", "-ntp", "-Dkeycloak.version=" + sdk,
-                    "-Dmaven.repo.local=" + os.environ.get("MAVEN_REPO_LOCAL", str(ROOT / ".tools/maven")),
-                    "-DskipTests", "package"], cwd=directory, env=env, check=True, timeout=300)
-    return directory / "target" / sdk / ("bounded-delegation-keycloak-" + sdk + ".jar")
+            and re.fullmatch(r"[0-9a-f]{40}", pin.get("revision", ""))
+            and pin.get("tag") == "v0.1.0-rc.2"
+            and re.fullmatch(r"[0-9a-f]{64}", pin.get("published_jars", {}).get(sdk, "")),
+            "Invalid published lifecycle baseline pin")
+    directory = ROOT / ".tools/cache/lifecycle-releases" / pin["revision"]
+    directory.mkdir(parents=True, exist_ok=True)
+    name = "bounded-delegation-0.1.0-rc.2-keycloak-" + sdk + ".jar"
+    jar = directory / name
+    if not jar.exists():
+        url = "https://github.com/" + pin["repository"] + "/releases/download/" + pin["tag"] + "/" + name
+        with tempfile.TemporaryDirectory(prefix="fetch-", dir=directory) as temporary:
+            staged = Path(temporary) / name
+            with urlopen(url, timeout=90) as response:
+                content = response.read(5 * 1024 * 1024 + 1)
+            require(0 < len(content) <= 5 * 1024 * 1024, "Published baseline JAR exceeds its budget")
+            staged.write_bytes(content)
+            require(digest(staged) == pin["published_jars"][sdk], "Published lifecycle baseline checksum mismatch")
+            staged.rename(jar)
+    require(not jar.is_symlink() and digest(jar) == pin["published_jars"][sdk],
+            "Lifecycle baseline differs from its published rc.2 JAR")
+    return jar
 
 
 def decode(value):
@@ -371,7 +371,7 @@ def main():
                 "keycloak": args.keycloak_version, "jar_sha256": candidate_hash, "baseline": {**pin, "jar_sha256": baseline_hash},
                 "images": {"keycloak": pins["keycloak"][args.keycloak_version], "postgres": pins["postgres"]},
                 "checks": fixture.checks, "measurements": fixture.timings, "completed_at": datetime.now(timezone.utc).isoformat(),
-                "limits": ["coordinated two-node restart; no mixed-version rolling upgrade", "one immutable pre-task baseline per matching SDK",
+                "limits": ["coordinated two-node restart; no mixed-version rolling upgrade", "one published rc.2 baseline per matching SDK",
                            "task grants cancelled/withdrawn and expired before rollback", "provider removal requires explicit native exchange disable",
                            "offline JWTs retain their residual lifetime; business transactions are outside the issuer"]}, indent=2) + "\n")
         except Exception:

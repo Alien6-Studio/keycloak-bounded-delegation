@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0
+
+- Publish a qualified software-service-account release for exact Keycloak 26.7.5, 26.8.0 and 26.8.1 SDKs; retain the initial-development protocol marker and optional task authorization.
+- Require native/console, two-node database-state and lifecycle qualification on every exact release JAR. Exercise coordinated upgrade and rollback using the actual published rc.2 baseline binaries.
+- Admit only the reviewed stable 0.1.0 version through the signed-tag release guard; keep source signatures, clean-source hashes, complete SDK evidence and provenance requirements.
+- Add download-first installation and an explicit support policy, including the operator 1.1.0/rc.2 compatibility boundary.
+- Preserve the original console-test exception if screenshot capture or browser shutdown also fails.
+
 ## 0.1.0-rc.2
 
 - Fix the release guard's repository API endpoint, which rejected the unpublished rc.1 candidate before asset creation. Retain its signed tag unchanged.
@@ -26,4 +34,4 @@
 - Qualify Java and real HTTPS interoperability on Keycloak 26.7.5 and 26.8.0.
 - Add independent CI, DCO, repository protection auditing and dependency updates.
 
-No stable release or Maven publication exists.
+Maven Central publication is not configured. Historical prerelease assets and signed tags remain unchanged.

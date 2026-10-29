@@ -2,15 +2,20 @@
 
 ## Version and scope
 
-The project prepares **0.1.0-rc.2** as its first public experimental candidate,
-after native qualification and maintainer review. The current release validator
-accepts experimental prereleases only; stable publication requires a separately
-reviewed readiness/support-policy change and closing the runtime gaps in the
-[roadmap](roadmap.md).
+Version **0.1.0** is prepared as the qualified software-service-account release
+under the [support policy](support-policy.md). The stable publisher accepts only
+the exact `release.stable_version` declared in `compatibility.json`, with its
+reviewed support document. SNAPSHOTs and unreviewed stable versions are refused.
+Prereleases remain explicitly classified as prereleases.
 
-The rc.1 tag is retained as an unpublished candidate: its first workflow stopped
-at the metadata eligibility request before creating assets. The corrected
-transport is released under rc.2; signed tags are never moved or reused.
+The 0.x administrative contract retains its initial-development marker and
+existing wire bytes. Qualification covers the recorded exact SDKs and native
+database-backed topology; it does not establish human delegation, sustained-load
+SLAs, cache-only recovery or mixed-version rolling upgrade support.
+
+The published rc.2 binaries are the immutable lifecycle baseline, pinned by
+SHA-256 for each SDK. The rc.1 tag remains an unpublished historical candidate.
+Existing tags and published assets are never moved, reused or overwritten.
 
 One project version covers the extension contract. Every qualified Keycloak SDK
 gets its own binary; private-SPI compatibility is never inferred from a shared
@@ -53,25 +58,25 @@ CI also downloads all immutable SDK candidates and exercises the full bundle
 assembly. Candidate manifests are explicitly non-releasable. Local/CI rehearsal
 does not exercise production GitHub OIDC signing or remote publication.
 
-## Cut an experimental candidate
+## Cut a qualified release
 
 1. Review the roadmap, compatibility window, dependency/security findings and
    release notes. Close only qualification work supported by actual evidence.
-2. Prepare a PR changing the POM to `0.1.0-rc.2`, reviewing CHANGELOG.md and updating
+2. Prepare a PR changing the POM to `0.1.0`, reviewing CHANGELOG.md and updating
    README release status/badges and the supported-version security policy. Keep
    the complete SDK matrix and required `Extension checks` / CodeQL gates green.
 3. Merge through protected main. Create a **signed annotated** tag such as
-   `v0.1.0-rc.2` for that exact GitHub-Verified source commit and push the tag.
+   `v0.1.0` for that exact GitHub-Verified source commit and push the tag.
    Both source and tag must be GitHub Verified; lightweight, foreign and moved
    tag identities are rejected. The workflow never creates or rewrites tags.
    Start the workflow while main still identifies that exact tagged commit.
    Eligibility runs its checker from the immutable workflow commit, never from
    unverified tag code, and requires the tag to match it. This also keeps the
    attested workflow/source identity equal to the actual artifact source.
-4. Run the `Draft prerelease` workflow **from main**, supplying that existing tag:
+4. Run the `Draft release` workflow **from main**, supplying that existing tag:
 
    ```sh
-   gh workflow run release.yml --ref main -f tag=v0.1.0-rc.2
+   gh workflow run release.yml --ref main -f tag=v0.1.0
    ```
 
 5. Eligibility verifies tag/source signatures, protected-main ancestry and POM
@@ -79,11 +84,11 @@ does not exercise production GitHub OIDC signing or remote publication.
    The publisher downloads only this run's SDK artifacts, verifies the complete
    inventory/hashes and rechecks the tag before attesting and creating a draft.
 6. Review the draft's evidence, assets, notes and known limitations; publish it
-   manually when ready. The workflow never publishes a stable or public release
-   automatically. If a draft/tag already exists, creation fails rather than
+   when ready. The workflow classifies the draft as stable or prerelease from
+   the verified version; it never makes a release public automatically. If a draft/tag already exists, creation fails rather than
    overwriting existing release assets; inspect the earlier run before retrying.
    A retry of the original workflow run retains its source identity. Starting a
-   new run after main advances requires a new reviewed candidate; do not move tags.
+   new run after main advances requires a new reviewed release source; do not move tags.
 
 Only the final draft job has content/attestation write permissions. It uses the
 `release` environment restricted to workflows running from main. Build/test jobs
@@ -100,4 +105,5 @@ gh attestation verify bounded-delegation-VERSION-keycloak-SDK.jar \
 
 Match the attested source and exact SDK to the intended release. Copy only its
 provider JAR to Keycloak's providers directory and rebuild the server. Review
-[activation and safe withdrawal](installation.md) before installing or removing it.
+[activation and safe withdrawal](installation.md) before installing or removing it. Operator 1.1.0 requires rc.2; a consumer build
+explicitly accepting 0.1.0 is needed before upgrading that deployment.

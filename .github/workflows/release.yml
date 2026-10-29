@@ -1,9 +1,9 @@
-name: Draft prerelease
+name: Draft release
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing GitHub-verified annotated prerelease tag on protected main (for example v0.1.0-rc.2)
+        description: Existing GitHub-verified annotated release tag on protected main (for example v0.1.0)
         required: true
         type: string
 permissions:
@@ -104,13 +104,15 @@ jobs:
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: target/distribution/*
-      - name: Verify attestations and create a draft prerelease
+      - name: Verify attestations and create a version-classified draft
         env:
           RELEASE_TAG: ${{ inputs.tag }}
           GH_TOKEN: ${{ github.token }}
         run: |
           for asset in target/distribution/*; do gh attestation verify "$asset" --repo "$GITHUB_REPOSITORY"; done
           python3 scripts/release.py verify-tag --repository "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG"
+          flags=()
+          if [[ "$RELEASE_TAG" == *-* ]]; then flags+=(--prerelease); fi
           gh release create "$RELEASE_TAG" target/distribution/* --repo "$GITHUB_REPOSITORY" \
-            --draft --prerelease --verify-tag --target "$(git rev-parse HEAD)" \
+            --draft "${flags[@]}" --verify-tag --target "$(git rev-parse HEAD)" \
             --title "Keycloak Bounded Delegation $RELEASE_TAG" --notes-file target/distribution/RELEASE_NOTES.md
